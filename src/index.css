@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand: #00c896;
+  --color-brand-dark: #00a87a;
+  --color-brand-light: #e8faf4;
+  --color-app-bg: #f5f6f8;
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #8a8a8a;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: #e8e8e8;
+  color: var(--color-text-primary);
+}
+
+.font-standard {
+  font-size: 16px;
+}
+
+.font-medium {
+  font-size: 18px;
+}
+
+.font-large {
+  font-size: 20px;
+}
+
+.app-card {
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+.tab-btn {
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  appearance: none;
+  transform: none;
+}
+
+.tab-btn:active,
+.tab-btn:focus,
+.tab-btn:focus-visible {
+  transform: none;
+  outline: none;
+}
+
+.form-title {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.form-body {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.form-body-muted {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #999;
+}
+
+.time-wheel-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.time-wheel-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.time-wheel-scroll {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 28%,
+    #000 72%,
+    transparent 100%
+  );
+}
+
+.time-chip-row {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  mask-image: linear-gradient(to right, #000 calc(100% - 12px), transparent);
+}
+
+.time-chip-row::-webkit-scrollbar {
+  display: none;
+}
