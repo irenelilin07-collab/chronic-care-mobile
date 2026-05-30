@@ -64,7 +64,7 @@ export default function WeekStripe({
         >
           <Chevron direction="left" />
         </button>
-        <p className="text-sm font-semibold text-[#1a1a1a]">{weekRangeLabel(selectedDateKey)}</p>
+        <p className="text-sm font-semibold text-[#00a87a]">{weekRangeLabel(selectedDateKey)}</p>
         <button
           type="button"
           onClick={() => onWeekShift?.(1)}
@@ -90,21 +90,13 @@ export default function WeekStripe({
               type="button"
               onClick={() => onSelect(day.dateKey)}
               className={`flex flex-col items-center rounded-xl px-1 py-2.5 transition-colors ${
-                selected
-                  ? "bg-[#e8faf4] ring-2 ring-[#00c896]"
-                  : status.allDone
-                    ? "bg-[#e8faf4] ring-1 ring-[#b7eb8f]"
-                    : day.isToday
-                      ? "bg-[#f8faf9] ring-1 ring-[#ddd]"
-                      : status.hasTasks
-                        ? "bg-[#fafafa]"
-                        : "bg-transparent"
+                selected ? "bg-[#e8faf4] ring-2 ring-[#00c896]" : "bg-transparent"
               }`}
             >
               <span className="text-[11px] text-[#999]">{day.weekday}</span>
               <span
                 className={`mt-0.5 text-base font-bold ${
-                  selected ? "text-[#00a87a]" : day.isToday ? "text-[#00a87a]" : "text-[#1a1a1a]"
+                  selected ? "text-[#00a87a]" : "text-[#1a1a1a]"
                 }`}
               >
                 {day.day}

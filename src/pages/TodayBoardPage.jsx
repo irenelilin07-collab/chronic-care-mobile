@@ -13,6 +13,7 @@ import {
   isIntakeTaken,
   toggleIntakeRecord,
 } from "../lib/dailySchedule.js";
+import { entriesForDate } from "../lib/journalEntry.js";
 
 function formatSelectedDate(dateKey) {
   const today = dateKeyFromDate(new Date());
@@ -26,6 +27,7 @@ export default function TodayBoardPage({
   medicines,
   medicationPlans,
   intakeRecords,
+  journalEntries,
   onIntakeChange,
   onMedicinesChange,
   onAddPlan,
@@ -41,6 +43,16 @@ export default function TodayBoardPage({
   );
 
   const slotGroups = useMemo(() => groupTasksBySlot(tasks), [tasks]);
+
+  const dayAdverseEntries = useMemo(
+    () =>
+      entriesForDate(journalEntries, selectedDateKey).filter(
+        (entry) => entry.entryType === "adverse"
+      ),
+    [journalEntries, selectedDateKey]
+  );
+
+  const dateLabel = formatSelectedDate(selectedDateKey);
 
   function handleToggle(task, nextTaken) {
     const currentlyTaken = isIntakeTaken(intakeRecords, task.dateKey, task.planId, task.time);
@@ -65,7 +77,7 @@ export default function TodayBoardPage({
   }
 
   return (
-    <div className="space-y-3 pb-4">
+    <div className="space-y-3 pb-24">
       <ProgressRing percent={progress.percent} done={progress.done} total={progress.total} />
 
       <WeekStripe
@@ -77,9 +89,14 @@ export default function TodayBoardPage({
         intakeRecords={intakeRecords}
       />
 
-      <p className="px-0.5 text-sm font-semibold text-[#666]">
-        {formatSelectedDate(selectedDateKey)}的用药任务
-      </p>
+      <div className="px-0.5">
+        <h3 className="text-base font-bold leading-snug text-[#1a1a1a]">
+          {dateLabel}的用药任务
+        </h3>
+        {dayAdverseEntries.length > 0 ? (
+          <p className="mt-1 text-sm text-[#999]">已记 {dayAdverseEntries.length} 次不适</p>
+        ) : null}
+      </div>
 
       {tasks.length === 0 ? (
         <section className="app-card px-4 py-10 text-center">
@@ -90,7 +107,7 @@ export default function TodayBoardPage({
         slotGroups.map((group, index) => (
           <section key={group.key} className={index > 0 ? "mt-3" : ""}>
             <div className="mb-2 flex items-center gap-3 px-0.5">
-              <span className="shrink-0 text-xs font-medium text-[#999]">{group.label}</span>
+              <span className="shrink-0 text-sm leading-snug text-[#999]">{group.label}</span>
               <span className="h-px flex-1 bg-[#eee]" aria-hidden="true" />
             </div>
             <ul className="space-y-2">

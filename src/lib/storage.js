@@ -1,4 +1,5 @@
 import { normalizeProfile } from "./profile.js";
+import { normalizeJournalEntries } from "./journalEntry.js";
 import { DEFAULT_SETTINGS, normalizeSettings } from "./settings.js";
 
 const STORAGE_KEY = "chronic-care-mobile-v1";
@@ -25,6 +26,7 @@ export const defaultState = {
   medicationPlans: [],
   intakeRecords: {},
   appointments: [],
+  journalEntries: [],
   settings: structuredClone(DEFAULT_SETTINGS),
   profile: {
     nickname: "用户",
@@ -52,6 +54,7 @@ export function loadState() {
       ui: { ...defaultState.ui, ...(parsed.ui || {}) },
       settings: normalizeSettings({ ...defaultState.settings, ...(parsed.settings || {}) }),
       profile: normalizeProfile({ ...defaultState.profile, ...(parsed.profile || {}) }),
+      journalEntries: normalizeJournalEntries(parsed.journalEntries),
     };
   } catch (error) {
     console.error("loadState failed:", error);

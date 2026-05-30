@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { CircleIconWrap } from "../components/CircleIconButton.jsx";
+import JournalEntrySheet from "../components/JournalEntrySheet.jsx";
 import ProfileSectionModal from "../components/ProfileSectionModal.jsx";
 import ReminderSettingsModal from "../components/ReminderSettingsModal.jsx";
 import ReportExportModal from "../components/ReportExportModal.jsx";
+import { dateKeyFromDate } from "../lib/dailySchedule.js";
+import { entriesForDate } from "../lib/journalEntry.js";
 import { requestNotificationPermission } from "../lib/medicationReminder.js";
 import {
   normalizeProfile,
@@ -25,44 +28,6 @@ const PROFILE_SECTIONS = [
     Icon: IconPhone,
   },
 ];
-
-function IconBell({ className = "h-5 w-5" }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M18 16H6l1.2-1.6A4 4 0 0 0 8 11.2V9a4 4 0 1 1 8 0v2.2a4 4 0 0 0 .8 2.4L18 16Z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <path d="M10 18a2 2 0 0 0 4 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconClock({ className = "h-5 w-5" }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M12 8v4l2.5 2.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconDownload({ className = "h-5 w-5" }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M12 4v10M8.5 10.5 12 14l3.5-3.5"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path d="M5 18h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 function IconUser({ className = "h-5 w-5" }) {
   return (
@@ -118,6 +83,58 @@ function IconPhone({ className = "h-5 w-5" }) {
   );
 }
 
+function IconBell({ className = "h-5 w-5" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M18 16H6l1.2-1.6A4 4 0 0 0 8 11.2V9a4 4 0 1 1 8 0v2.2a4 4 0 0 0 .8 2.4L18 16Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path d="M10 18a2 2 0 0 0 4 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconClock({ className = "h-5 w-5" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M12 8v4l2.5 2.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconDownload({ className = "h-5 w-5" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M12 4v10M8.5 10.5 12 14l3.5-3.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M5 18h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconAdverse({ className = "h-5 w-5" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M4 12h2.5l2-4 2.5 8 2.5-5 2 3H20"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function ChevronRight() {
   return (
     <svg className="h-4 w-4 shrink-0 text-[#ccc]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -157,7 +174,10 @@ function ToggleSwitch({ checked, onChange }) {
 
 function SettingsListRow({ icon, label, summary, onClick, bordered }) {
   const hasSummary = summary != null;
-  const filled = hasSummary && summary !== "点击填写" && summary !== "未开启";
+  const filled =
+    hasSummary &&
+    summary !== "点击填写" &&
+    summary !== "未开启";
 
   return (
     <button
@@ -189,14 +209,29 @@ export default function SettingsPage({
   medicines,
   medicationPlans,
   intakeRecords,
+  journalEntries,
   onProfileChange,
   onSettingsChange,
+  onJournalChange,
 }) {
   const normalizedProfile = normalizeProfile(profile);
   const normalizedSettings = normalizeSettings(settings);
   const [activeSection, setActiveSection] = useState(null);
   const [minutesOpen, setMinutesOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [journalOpen, setJournalOpen] = useState(false);
+
+  const todayDateKey = dateKeyFromDate(new Date());
+  const todayAdverseCount = useMemo(
+    () =>
+      entriesForDate(journalEntries, todayDateKey).filter(
+        (entry) => entry.entryType === "adverse"
+      ).length,
+    [journalEntries, todayDateKey]
+  );
+
+  const adverseSummary =
+    todayAdverseCount > 0 ? `今天已记 ${todayAdverseCount} 次` : "记录用药相关不适";
 
   const { enabled, minutesBefore } = normalizedSettings.medicationReminder;
 
@@ -245,7 +280,7 @@ export default function SettingsPage({
         </div>
       </div>
 
-      <div className="app-card overflow-hidden">
+      <SettingsSection title="我的档案">
         {PROFILE_SECTIONS.map((item, index) => {
           const { Icon } = item;
           return (
@@ -259,15 +294,15 @@ export default function SettingsPage({
             />
           );
         })}
-      </div>
+      </SettingsSection>
 
-      <SettingsSection title="用药提醒">
+      <SettingsSection title="日常使用">
         <div className="flex items-center gap-3 px-5 py-4">
           <CircleIconWrap>
             <IconBell />
           </CircleIconWrap>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-[#333]">开启提醒</p>
+            <p className="text-sm font-medium text-[#333]">用药提醒</p>
             <p className="mt-0.5 text-xs text-[#999]">通过浏览器通知提醒您用药</p>
           </div>
           <ToggleSwitch checked={enabled} onChange={handleReminderToggle} />
@@ -286,30 +321,22 @@ export default function SettingsPage({
           <span className="shrink-0 text-sm text-[#999]">提前 {minutesBefore} 分钟</span>
           <ChevronRight />
         </button>
+        <SettingsListRow
+          icon={<IconAdverse />}
+          label="记录不适"
+          summary={adverseSummary}
+          onClick={() => setJournalOpen(true)}
+          bordered
+        />
       </SettingsSection>
 
-      <SettingsSection title="数据导出">
-        <div className="flex items-start gap-3 px-5 py-4">
-          <CircleIconWrap>
-            <IconDownload />
-          </CircleIconWrap>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-[#333]">导出用药报告</p>
-            <p className="mt-1 text-xs leading-5 text-[#999]">
-              生成包含个人档案、用药计划、打卡记录、库存信息的 PDF 报告
-            </p>
-          </div>
-        </div>
-        <div className="px-5 pb-4">
-          <button
-            type="button"
-            onClick={() => setReportOpen(true)}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#00c896] py-3.5 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(0,200,150,0.35)]"
-          >
-            <IconDownload className="h-4 w-4" />
-            导出报告
-          </button>
-        </div>
+      <SettingsSection title="就医备查">
+        <SettingsListRow
+          icon={<IconDownload />}
+          label="导出用药报告"
+          summary="含完成率、漏服、不适记录与用药清单"
+          onClick={() => setReportOpen(true)}
+        />
       </SettingsSection>
 
       <ProfileSectionModal
@@ -336,7 +363,17 @@ export default function SettingsPage({
           medicines,
           medicationPlans,
           intakeRecords,
+          journalEntries,
         }}
+      />
+
+      <JournalEntrySheet
+        open={journalOpen}
+        dateKey={todayDateKey}
+        dateLabel="今天"
+        medicines={medicines}
+        onClose={() => setJournalOpen(false)}
+        onSave={(entry) => onJournalChange([...(journalEntries || []), entry])}
       />
     </section>
   );

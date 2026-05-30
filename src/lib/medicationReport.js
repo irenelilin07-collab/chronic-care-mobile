@@ -1,5 +1,6 @@
 import {
   addDays,
+  buildTasksForDate,
   computeRangeProgress,
   dateKeyFromDate,
   formatDateKeyLabel,
@@ -15,6 +16,7 @@ import {
 import {
   formatSpec,
   formatStockDaysLabel,
+  stockLevel,
   stockUnitOf,
 } from "./medicine.js";
 import {
@@ -22,6 +24,12 @@ import {
   genderLabel,
   normalizeProfile,
 } from "./profile.js";
+import {
+  adverseEntriesInRange,
+  attributionLabel,
+  formatAdverseOccurredAt,
+  severityLabel,
+} from "./journalEntry.js";
 
 function formatReportTime(date = new Date()) {
   const y = date.getFullYear();
@@ -60,11 +68,50 @@ function infoTable(rows) {
   return `<table style="width:100%;border-collapse:collapse;font-size:13px;background:#fff;border:1px solid #f0f0f0;border-radius:8px;overflow:hidden;">${rows.join("")}</table>`;
 }
 
+function emptyText(text) {
+  return `<p style="margin:0;color:#999;font-size:13px;">${escapeHtml(text)}</p>`;
+}
+
+function summaryCard(title, value, desc = "") {
+  return `<div style="flex:1;min-width:160px;padding:14px 12px;background:#f6fffb;border:1px solid #d4f0e6;border-radius:10px;">
+    <p style="margin:0 0 6px;font-size:12px;color:#00a87a;">${escapeHtml(title)}</p>
+    <p style="margin:0;font-size:22px;font-weight:700;color:#1a1a1a;">${escapeHtml(value)}</p>
+    ${desc ? `<p style="margin:6px 0 0;font-size:12px;color:#999;">${escapeHtml(desc)}</p>` : ""}
+  </div>`;
+}
+
+function taskTaken(intakeRecords, task) {
+  return intakeRecords?.[task.id] === "taken";
+}
+
+function buildMissedIntakes(rangeKeys, medicationPlans, medicines, intakeRecords) {
+  const missed = [];
+
+  for (const dateKey of rangeKeys) {
+    const tasks = buildTasksForDate(dateKey, medicationPlans, medicines);
+    for (const task of tasks) {
+      if (taskTaken(intakeRecords, task)) continue;
+      missed.push({
+        dateKey,
+        time: task.time,
+        medicineName: task.medicineName,
+        dose: task.dose,
+      });
+    }
+  }
+
+  return missed.sort((a, b) => {
+    const dateOrder = a.dateKey.localeCompare(b.dateKey);
+    return dateOrder || a.time.localeCompare(b.time);
+  });
+}
+
 export function buildMedicationReportHtml(state, { startDateKey, endDateKey }) {
   const profile = normalizeProfile(state.profile);
   const medicines = state.medicines || [];
   const medicationPlans = state.medicationPlans || [];
   const intakeRecords = state.intakeRecords || {};
+  const journalEntries = state.journalEntries || [];
 
   const rangeKeys = listDateKeysInRange(startDateKey, endDateKey);
   const rangeProgress = computeRangeProgress(
@@ -103,16 +150,108 @@ export function buildMedicationReportHtml(state, { startDateKey, endDateKey }) {
     infoRow("紧急联系人", emergencyContact),
   ]);
 
+  const missedIntakes = buildMissedIntakes(
+    rangeKeys,
+    medicationPlans,
+    medicines,
+    intakeRecords
+  );
+
+  const adverseEntries = adverseEntriesInRange(journalEntries, startDateKey, endDateKey);
+
+  function relatedMedicineNames(relatedMedicineIds) {
+    if (!relatedMedicineIds.length) return "—";
+    const names = relatedMedicineIds
+      .map((id) => medicines.find((medicine) => medicine.id === id)?.name)
+      .filter(Boolean);
+    return names.length > 0 ? names.join("、") : "—";
+  }
+
+  let adverseSection = "";
+  if (adverseEntries.length === 0) {
+    adverseSection = emptyText("统计时段内暂无不适记录");
+  } else {
+    adverseSection = `<table style="width:100%;border-collapse:collapse;font-size:13px;background:#fff;border:1px solid #f0f0f0;border-radius:8px;overflow:hidden;">
+      <thead>
+        <tr>
+          <th style="padding:8px 10px;text-align:left;color:#999;border-bottom:1px solid #eee;">日期</th>
+          <th style="padding:8px 10px;text-align:left;color:#999;border-bottom:1px solid #eee;">发生时间</th>
+          <th style="padding:8px 10px;text-align:left;color:#999;border-bottom:1px solid #eee;">症状</th>
+          <th style="padding:8px 10px;text-align:left;color:#999;border-bottom:1px solid #eee;">程度</th>
+          <th style="padding:8px 10px;text-align:left;color:#999;border-bottom:1px solid #eee;">与用药关系</th>
+          <th style="padding:8px 10px;text-align:left;color:#999;border-bottom:1px solid #eee;">关联药品</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${adverseEntries
+          .map((entry) => {
+            const reaction = entry.adverseReaction;
+            const symptoms =
+              reaction.symptoms.length > 0 ? reaction.symptoms.join("、") : "—";
+            const remark = reaction.remark
+              ? `<p style="margin:4px 0 0;font-size:11px;color:#999;">备注：${escapeHtml(reaction.remark)}</p>`
+              : "";
+            return `<tr>
+            <td style="padding:8px 10px;color:#333;border-bottom:1px solid #f5f5f5;vertical-align:top;">${escapeHtml(formatDateKeyLabel(entry.dateKey))}</td>
+            <td style="padding:8px 10px;color:#666;border-bottom:1px solid #f5f5f5;vertical-align:top;">${escapeHtml(formatAdverseOccurredAt(reaction.occurredAt))}</td>
+            <td style="padding:8px 10px;color:#333;border-bottom:1px solid #f5f5f5;vertical-align:top;">${escapeHtml(symptoms)}${remark}</td>
+            <td style="padding:8px 10px;color:#666;border-bottom:1px solid #f5f5f5;vertical-align:top;">${escapeHtml(severityLabel(reaction.severity))}</td>
+            <td style="padding:8px 10px;color:#666;border-bottom:1px solid #f5f5f5;vertical-align:top;">${escapeHtml(attributionLabel(reaction.attributionType))}</td>
+            <td style="padding:8px 10px;color:#666;border-bottom:1px solid #f5f5f5;vertical-align:top;">${escapeHtml(relatedMedicineNames(reaction.relatedMedicineIds))}</td>
+          </tr>`;
+          })
+          .join("")}
+      </tbody>
+    </table>`;
+  }
+
+  const completionSection = `<div style="display:flex;gap:12px;flex-wrap:wrap;">
+    ${summaryCard("服药完成率", `${rangeProgress.percent}%`, `已完成 ${rangeProgress.done}/${rangeProgress.total} 次`)}
+    ${summaryCard("漏服次数", `${Math.max(rangeProgress.total - rangeProgress.done, 0)} 次`, rangeProgress.total > 0 ? "按计划任务统计" : "统计时段内暂无用药任务")}
+  </div>`;
+
+  let missedSection = "";
+  if (rangeProgress.total === 0) {
+    missedSection = emptyText("统计时段内暂无用药任务");
+  } else if (missedIntakes.length === 0) {
+    missedSection = emptyText("统计时段内暂无漏服记录");
+  } else {
+    missedSection = `<table style="width:100%;border-collapse:collapse;font-size:13px;background:#fff;border:1px solid #f0f0f0;border-radius:8px;overflow:hidden;">
+      <thead>
+        <tr>
+          <th style="padding:8px 10px;text-align:left;color:#999;border-bottom:1px solid #eee;">日期</th>
+          <th style="padding:8px 10px;text-align:left;color:#999;border-bottom:1px solid #eee;">时间</th>
+          <th style="padding:8px 10px;text-align:left;color:#999;border-bottom:1px solid #eee;">漏服药品</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${missedIntakes
+          .map((item) => `<tr>
+            <td style="padding:8px 10px;color:#333;border-bottom:1px solid #f5f5f5;">${escapeHtml(formatDateKeyLabel(item.dateKey))}</td>
+            <td style="padding:8px 10px;color:#666;border-bottom:1px solid #f5f5f5;">${escapeHtml(item.time)}</td>
+            <td style="padding:8px 10px;color:#ff4d4f;border-bottom:1px solid #f5f5f5;">${escapeHtml(`${item.medicineName}${item.dose ? `（${item.dose}）` : ""}`)}</td>
+          </tr>`)
+          .join("")}
+      </tbody>
+    </table>`;
+  }
+
   let inventorySection = "";
   if (medicines.length === 0) {
-    inventorySection = `<p style="margin:0;color:#999;font-size:13px;">暂无药品记录</p>`;
+    inventorySection = emptyText("暂无药品记录");
   } else {
     inventorySection = medicines
       .map((medicine, index) => {
+        const level = stockLevel(medicine, medicationPlans);
+        const levelLabel =
+          level === "low" ? "库存紧张" : level === "mid" ? "库存偏低" : "库存充足";
+        const levelColor =
+          level === "low" ? "#ff4d4f" : level === "mid" ? "#faad14" : "#00a87a";
         return `<div style="margin-bottom:12px;padding:12px;border:1px solid #f0f0f0;border-radius:8px;background:#fafafa;">
           <p style="margin:0 0 6px;font-size:14px;font-weight:600;color:#333;">${index + 1}. ${escapeHtml(medicine.name)}</p>
           <p style="margin:0 0 4px;font-size:12px;color:#666;">规格：${escapeHtml(formatSpec(medicine))} · 单次 ${escapeHtml(medicine.dose)}</p>
-          <p style="margin:0;font-size:12px;color:#666;">剩余：${escapeHtml(String(medicine.stock))}${escapeHtml(stockUnitOf(medicine))} · ${escapeHtml(formatStockDaysLabel(medicine, medicationPlans))}</p>
+          <p style="margin:0 0 4px;font-size:12px;color:${levelColor};">剩余：${escapeHtml(String(medicine.stock))}${escapeHtml(stockUnitOf(medicine))} · ${escapeHtml(formatStockDaysLabel(medicine, medicationPlans))}</p>
+          <p style="margin:0;font-size:12px;color:#999;">状态：${escapeHtml(levelLabel)}</p>
         </div>`;
       })
       .join("");
@@ -135,51 +274,22 @@ export function buildMedicationReportHtml(state, { startDateKey, endDateKey }) {
       .join("");
   }
 
-  const dailyRows = rangeKeys
-    .map((dateKey) => {
-      const dayProgress = computeRangeProgress(
-        [dateKey],
-        medicationPlans,
-        medicines,
-        intakeRecords
-      );
-      const label = formatDateKeyLabel(dateKey);
-      const detail =
-        dayProgress.total === 0
-          ? "无用药任务"
-          : `${dayProgress.done}/${dayProgress.total} 次（${dayProgress.percent}%）`;
-      return `<tr>
-        <td style="padding:6px 10px;border-bottom:1px solid #f5f5f5;color:#666;font-size:12px;">${escapeHtml(label)}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #f5f5f5;color:#333;font-size:12px;text-align:right;">${escapeHtml(detail)}</td>
-      </tr>`;
-    })
-    .join("");
-
-  const intakeSection = `<div style="margin-bottom:8px;padding:10px 12px;background:#e8faf4;border-radius:8px;font-size:13px;color:#00a87a;">
-    完成度：${rangeProgress.percent}%（已完成 ${rangeProgress.done}/${rangeProgress.total} 次）
-  </div>
-  <table style="width:100%;border-collapse:collapse;">
-    <thead>
-      <tr>
-        <th style="padding:6px 10px;text-align:left;font-size:12px;color:#999;border-bottom:1px solid #eee;">日期</th>
-        <th style="padding:6px 10px;text-align:right;font-size:12px;color:#999;border-bottom:1px solid #eee;">服药情况</th>
-      </tr>
-    </thead>
-    <tbody>${dailyRows}</tbody>
-  </table>`;
-
   return `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;color:#333;padding:28px 24px 32px;max-width:720px;line-height:1.5;">
     <h1 style="margin:0 0 8px;font-size:22px;color:#1a1a1a;">慢病用药报告</h1>
     <p style="margin:0 0 4px;font-size:12px;color:#999;">生成时间：${escapeHtml(formatReportTime())}</p>
     <p style="margin:0;font-size:12px;color:#999;">统计时段：${escapeHtml(rangeLabel)}</p>
     ${sectionTitle("一、用户信息")}
     ${userSection}
-    ${sectionTitle("二、药箱库存")}
+    ${sectionTitle(`二、${rangeLabel} 服药完成率`)}
+    ${completionSection}
+    ${sectionTitle("三、漏服记录")}
+    ${missedSection}
+    ${sectionTitle("四、不适记录")}
+    ${adverseSection}
+    ${sectionTitle("五、药品库存")}
     ${inventorySection}
-    ${sectionTitle("三、用药计划")}
+    ${sectionTitle("六、当前用药清单")}
     ${planSection}
-    ${sectionTitle(`四、${rangeLabel} 服药情况`)}
-    ${intakeSection}
     <p style="margin:28px 0 0;text-align:center;font-size:12px;color:#ccc;">—— 报告结束 ——</p>
   </div>`;
 }

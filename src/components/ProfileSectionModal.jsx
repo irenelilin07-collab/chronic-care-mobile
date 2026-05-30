@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
+import Modal from "./Modal.jsx";
 import AllergyComboField from "./AllergyComboField.jsx";
 import DiseaseComboField from "./DiseaseComboField.jsx";
-import Modal from "./Modal.jsx";
 import { GENDER_OPTIONS, RELATION_OPTIONS } from "../lib/profile.js";
 
 const inputClass =

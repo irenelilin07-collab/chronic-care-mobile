@@ -22,25 +22,10 @@ function Chevron({ direction }) {
 }
 
 function DayCell({ day, status }) {
-  let cellClass = "bg-transparent";
-  if (day.isToday) {
-    cellClass = "bg-[#e8faf4] ring-2 ring-[#00c896]";
-  } else if (status.allDone) {
-    cellClass = "bg-[#e8faf4]";
-  } else if (status.hasTasks) {
-    cellClass = "bg-[#fafafa]";
-  }
-
   return (
-    <div className={`flex flex-col items-center rounded-xl px-1 py-2.5 ${cellClass}`}>
+    <div className="flex flex-col items-center rounded-xl bg-transparent px-1 py-2.5">
       <span className="text-[11px] text-[#999]">{day.weekday}</span>
-      <span
-        className={`mt-0.5 text-base font-bold ${
-          day.isToday ? "text-[#00a87a]" : "text-[#1a1a1a]"
-        }`}
-      >
-        {day.day}
-      </span>
+      <span className="mt-0.5 text-base font-bold text-[#1a1a1a]">{day.day}</span>
       <span className="mt-1 min-h-[18px] text-[10px] leading-[18px]">
         {status.hasTasks ? (
           <span className="text-[#999]">{status.total}项</span>
@@ -59,9 +44,7 @@ function DaySummaryRow({ day, status }) {
     <li className="flex items-center gap-3 py-2.5">
       <div className="w-12 shrink-0 text-center">
         <p className="text-xs text-[#999]">{day.weekday}</p>
-        <p className={`text-base font-bold ${day.isToday ? "text-[#00a87a]" : "text-[#1a1a1a]"}`}>
-          {day.day}
-        </p>
+        <p className="text-base font-bold text-[#1a1a1a]">{day.day}</p>
       </div>
       <div className="min-w-0 flex-1">
         {status.hasTasks ? (

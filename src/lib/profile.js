@@ -80,3 +80,13 @@ export function summarizeEmergencyContact(profile) {
   const parts = [name?.trim(), relation?.trim(), phone?.trim()].filter(Boolean);
   return parts.join(" · ");
 }
+
+export function summarizeProfileOverview(profile) {
+  const parts = [];
+  const diseases = summarizeChronicDiseases(profile);
+  const allergies = summarizeDrugAllergies(profile);
+  if (diseases !== "点击填写") parts.push(diseases);
+  if (allergies !== "点击填写") parts.push(allergies);
+  if (parts.length === 0) return "点击完善档案";
+  return parts.join(" · ");
+}

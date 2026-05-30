@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import AssistantPanel from "../components/AssistantPanel.jsx";
+import FloatingAssistantButton from "../components/FloatingAssistantButton.jsx";
 import MedicationPlanFormModal from "../components/MedicationPlanFormModal.jsx";
 import SlideOverPanel, {
   SLIDE_ENTER_EASE,
@@ -23,9 +25,13 @@ export default function TodayPage({
   medicines,
   medicationPlans,
   intakeRecords,
+  journalEntries,
+  profile,
+  appointments,
   onPlansChange,
   onIntakeChange,
   onMedicinesChange,
+  onJournalChange,
   onRegisterAddPlan,
 }) {
   const [view, setView] = useState("daily");
@@ -34,6 +40,19 @@ export default function TodayPage({
   const [planFormOpen, setPlanFormOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [manageAddSignal, setManageAddSignal] = useState(0);
+  const [assistantOpen, setAssistantOpen] = useState(false);
+
+  const assistantState = useMemo(
+    () => ({
+      profile,
+      medicines,
+      medicationPlans,
+      intakeRecords,
+      journalEntries,
+      appointments,
+    }),
+    [profile, medicines, medicationPlans, intakeRecords, journalEntries, appointments]
+  );
 
   const openAddPlan = useCallback(() => {
     setPlanFormOpen(true);
@@ -100,6 +119,7 @@ export default function TodayPage({
         medicines={medicines}
         medicationPlans={medicationPlans}
         intakeRecords={intakeRecords}
+        journalEntries={journalEntries}
         onIntakeChange={onIntakeChange}
         onMedicinesChange={onMedicinesChange}
         onAddPlan={openAddPlan}
@@ -111,18 +131,20 @@ export default function TodayPage({
     <>
       <div
         className={`overflow-hidden [backface-visibility:hidden] ${
-          manageOpen ? "pointer-events-none" : ""
+          manageOpen || assistantOpen ? "pointer-events-none" : ""
         }`}
         style={{
           transform: manageOpen
             ? "translate3d(-30%, 0, 0) scale(0.94)"
+            : assistantOpen
+              ? "translate3d(-8%, 0, 0) scale(0.98)"
             : "translate3d(0, 0, 0) scale(1)",
-          opacity: manageOpen ? 0.88 : 1,
+          opacity: manageOpen ? 0.88 : assistantOpen ? 0.95 : 1,
           transformOrigin: "center center",
           transitionProperty: "transform, opacity",
-          transitionDuration: manageOpen ? `${SLIDE_ENTER_MS}ms` : `${SLIDE_EXIT_MS}ms`,
-          transitionTimingFunction: manageOpen ? SLIDE_ENTER_EASE : SLIDE_EXIT_EASE,
-          willChange: manageOpen ? "transform, opacity" : "auto",
+          transitionDuration: manageOpen || assistantOpen ? `${SLIDE_ENTER_MS}ms` : `${SLIDE_EXIT_MS}ms`,
+          transitionTimingFunction: manageOpen || assistantOpen ? SLIDE_ENTER_EASE : SLIDE_EXIT_EASE,
+          willChange: manageOpen || assistantOpen ? "transform, opacity" : "auto",
         }}
       >
         <div className="mb-3 flex gap-1.5">
@@ -147,6 +169,16 @@ export default function TodayPage({
 
         {renderBoard()}
       </div>
+
+      {!manageOpen && !assistantOpen ? (
+        <FloatingAssistantButton onClick={() => setAssistantOpen(true)} />
+      ) : null}
+
+      <AssistantPanel
+        open={assistantOpen}
+        onClose={() => setAssistantOpen(false)}
+        state={assistantState}
+      />
 
       <MedicationPlanFormModal
         open={planFormOpen}

@@ -30,6 +30,8 @@ function renderPage(
   settings,
   setProfile,
   setSettings,
+  journalEntries,
+  setJournalEntries,
   onRegisterTodayAddPlan
 ) {
   switch (activeTab) {
@@ -53,8 +55,10 @@ function renderPage(
           medicines={medicines}
           medicationPlans={medicationPlans}
           intakeRecords={intakeRecords}
+          journalEntries={journalEntries}
           onProfileChange={setProfile}
           onSettingsChange={setSettings}
+          onJournalChange={setJournalEntries}
         />
       );
     default:
@@ -63,9 +67,13 @@ function renderPage(
           medicines={medicines}
           medicationPlans={medicationPlans}
           intakeRecords={intakeRecords}
+          journalEntries={journalEntries}
+          profile={profile}
+          appointments={appointments}
           onPlansChange={setMedicationPlans}
           onIntakeChange={setIntakeRecords}
           onMedicinesChange={setMedicines}
+          onJournalChange={setJournalEntries}
           onRegisterAddPlan={onRegisterTodayAddPlan}
         />
       );
@@ -120,6 +128,13 @@ export default function App({ state, setState }) {
     setState((prev) => ({
       ...prev,
       intakeRecords: typeof next === "function" ? next(prev.intakeRecords) : next,
+    }));
+  }
+
+  function setJournalEntries(next) {
+    setState((prev) => ({
+      ...prev,
+      journalEntries: typeof next === "function" ? next(prev.journalEntries || []) : next,
     }));
   }
 
@@ -188,6 +203,8 @@ export default function App({ state, setState }) {
             state.settings,
             setProfile,
             setSettings,
+            state.journalEntries || [],
+            setJournalEntries,
             registerTodayAddPlan
           )}
         </TabContent>

@@ -1,10 +1,29 @@
-export default function Modal({ title, onClose, children, compact = false }) {
+export default function Modal({
+  title,
+  onClose,
+  children,
+  compact = false,
+  centered = false,
+  bare = false,
+}) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
+    <div
+      className={`fixed inset-0 z-50 flex justify-center ${
+        bare ? "" : "bg-black/40"
+      } ${centered ? "items-center px-4" : "items-end sm:items-center"}`}
+    >
+      {bare ? (
+        <button
+          type="button"
+          aria-label="关闭"
+          className="absolute inset-0"
+          onClick={onClose}
+        />
+      ) : null}
       <div
-        className={`flex w-full max-w-md flex-col overflow-hidden rounded-t-2xl bg-white sm:rounded-2xl ${
+        className={`relative z-10 flex w-full max-w-md flex-col overflow-hidden rounded-t-2xl bg-white sm:rounded-2xl ${
           compact ? "max-h-[94vh] p-4" : "max-h-[85vh] p-5"
-        }`}
+        } ${centered ? "rounded-2xl" : ""} ${bare ? "modal-panel-bare" : ""}`}
       >
         <div className={`flex shrink-0 items-center justify-between ${compact ? "mb-2" : "mb-4"}`}>
           <h3 className="form-title text-[#1a1a1a]">{title}</h3>
