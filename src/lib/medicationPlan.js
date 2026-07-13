@@ -107,6 +107,16 @@ export function validatePlanForm(form, medicines = [], existingPlan = null) {
   return "";
 }
 
+export function removePlansForMedicine(medicationPlans, medicineId) {
+  if (!medicineId) return medicationPlans;
+  return medicationPlans.filter((plan) => plan.medicineId !== medicineId);
+}
+
+export function countPlansForMedicine(medicationPlans, medicineId) {
+  if (!medicineId) return 0;
+  return medicationPlans.filter((plan) => plan.medicineId === medicineId).length;
+}
+
 export function todaysDefaultDate() {
   return new Date().toISOString().slice(0, 10);
 }

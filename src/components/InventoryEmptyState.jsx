@@ -30,7 +30,7 @@ function EmptyIllustration() {
   );
 }
 
-export default function InventoryEmptyState({ onAdd }) {
+export default function InventoryEmptyState({ onAdd, guideHighlight = null }) {
   return (
     <section className="app-card overflow-hidden px-6 py-10">
       <div className="text-center">
@@ -39,13 +39,18 @@ export default function InventoryEmptyState({ onAdd }) {
         <p className="mx-auto mt-2 max-w-[240px] text-sm leading-6 text-[#999]">
           把正在服用的药品放进药箱，方便查看库存和可用天数
         </p>
-        <button
-          type="button"
-          onClick={onAdd}
-          className="mt-6 w-full rounded-xl bg-[#00c896] py-3.5 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(0,200,150,0.35)]"
+        <div
+          id="guide-add-medicine"
+          className={`mt-6 ${guideHighlight === "guide-add-medicine" ? "guide-highlight rounded-xl" : ""}`}
         >
-          + 添加第一种药品
-        </button>
+          <button
+            type="button"
+            onClick={onAdd}
+            className="w-full rounded-xl bg-[#00c896] py-3.5 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(0,200,150,0.35)]"
+          >
+            + 添加第一种药品
+          </button>
+        </div>
       </div>
 
       <ul className="mt-8 grid grid-cols-3 gap-2">

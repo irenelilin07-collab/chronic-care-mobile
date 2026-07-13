@@ -4,9 +4,14 @@ import JournalEntrySheet from "../components/JournalEntrySheet.jsx";
 import ProfileSectionModal from "../components/ProfileSectionModal.jsx";
 import ReminderSettingsModal from "../components/ReminderSettingsModal.jsx";
 import ReportExportModal from "../components/ReportExportModal.jsx";
+import { guideHighlightClass } from "../lib/appGuide.js";
 import { dateKeyFromDate } from "../lib/dailySchedule.js";
 import { entriesForDate } from "../lib/journalEntry.js";
-import { requestNotificationPermission } from "../lib/medicationReminder.js";
+import {
+  getNotificationStatusHint,
+  getReminderPermissionMessage,
+  tryEnableMedicationReminder,
+} from "../lib/medicationReminder.js";
 import {
   normalizeProfile,
   profileAvatarInitial,
@@ -121,6 +126,21 @@ function IconDownload({ className = "h-5 w-5" }) {
   );
 }
 
+function IconGuide({ className = "h-5 w-5" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M9.5 9.25a2.75 2.75 0 1 1 4.2 2.3c-.85.5-1.2 1-1.2 1.95V14"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <circle cx="12" cy="17.25" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
 function IconAdverse({ className = "h-5 w-5" }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -152,14 +172,15 @@ function SettingsSection({ title, children }) {
   );
 }
 
-function ToggleSwitch({ checked, onChange }) {
+function ToggleSwitch({ checked, onChange, disabled = false }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
+      className={`relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-60 ${
         checked ? "bg-[#00c896]" : "bg-[#ddd]"
       }`}
     >
@@ -213,6 +234,8 @@ export default function SettingsPage({
   onProfileChange,
   onSettingsChange,
   onJournalChange,
+  onStartGuide,
+  guideHighlight = null,
 }) {
   const normalizedProfile = normalizeProfile(profile);
   const normalizedSettings = normalizeSettings(settings);
@@ -220,6 +243,8 @@ export default function SettingsPage({
   const [minutesOpen, setMinutesOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [journalOpen, setJournalOpen] = useState(false);
+  const [reminderBusy, setReminderBusy] = useState(false);
+  const [reminderError, setReminderError] = useState("");
 
   const todayDateKey = dateKeyFromDate(new Date());
   const todayAdverseCount = useMemo(
@@ -249,24 +274,39 @@ export default function SettingsPage({
     setMinutesOpen(false);
   }
 
-  async function handleReminderToggle(nextEnabled) {
-    if (nextEnabled) {
-      const permission = await requestNotificationPermission();
-      if (permission !== "granted") {
-        alert("请允许浏览器通知权限，才能接收用药提醒");
-        return;
-      }
+  function handleReminderToggle(nextEnabled) {
+    if (!nextEnabled) {
+      setReminderError("");
+      onSettingsChange(
+        normalizeSettings({
+          ...normalizedSettings,
+          medicationReminder: {
+            ...normalizedSettings.medicationReminder,
+            enabled: false,
+          },
+        })
+      );
+      return;
     }
-    onSettingsChange(
-      normalizeSettings({
-        ...normalizedSettings,
-        medicationReminder: {
-          ...normalizedSettings.medicationReminder,
-          enabled: nextEnabled,
-        },
+
+    setReminderError("");
+    setReminderBusy(true);
+
+    void tryEnableMedicationReminder(normalizedSettings, onSettingsChange)
+      .then((result) => {
+        if (!result.ok) {
+          setReminderError(getReminderPermissionMessage(result.reason));
+        }
       })
-    );
+      .catch(() => {
+        setReminderError(getReminderPermissionMessage("unsupported"));
+      })
+      .finally(() => {
+        setReminderBusy(false);
+      });
   }
+
+  const notificationStatusHint = getNotificationStatusHint();
 
   return (
     <section className="space-y-3 pb-4">
@@ -283,7 +323,7 @@ export default function SettingsPage({
       <SettingsSection title="我的档案">
         {PROFILE_SECTIONS.map((item, index) => {
           const { Icon } = item;
-          return (
+          const row = (
             <SettingsListRow
               key={item.key}
               icon={<Icon />}
@@ -293,19 +333,47 @@ export default function SettingsPage({
               bordered={index > 0}
             />
           );
+
+          if (item.key === "diseases") {
+            return (
+              <div
+                key={item.key}
+                id="guide-diseases"
+                className={guideHighlightClass("guide-diseases", guideHighlight)}
+              >
+                {row}
+              </div>
+            );
+          }
+
+          return row;
         })}
       </SettingsSection>
 
       <SettingsSection title="日常使用">
-        <div className="flex items-center gap-3 px-5 py-4">
+        <div
+          id="guide-reminder"
+          className={guideHighlightClass("guide-reminder", guideHighlight)}
+        >
+          <div className="flex items-center gap-3 px-5 py-4">
           <CircleIconWrap>
             <IconBell />
           </CircleIconWrap>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-[#333]">用药提醒</p>
             <p className="mt-0.5 text-xs text-[#999]">通过浏览器通知提醒您用药</p>
+            {reminderError ? (
+              <p className="mt-1.5 text-xs leading-5 text-[#e67e22]">{reminderError}</p>
+            ) : notificationStatusHint && !enabled ? (
+              <p className="mt-1.5 text-xs leading-5 text-[#e67e22]">{notificationStatusHint}</p>
+            ) : null}
           </div>
-          <ToggleSwitch checked={enabled} onChange={handleReminderToggle} />
+          <ToggleSwitch
+            checked={enabled}
+            disabled={reminderBusy}
+            onChange={handleReminderToggle}
+          />
+        </div>
         </div>
         <button
           type="button"
@@ -336,6 +404,15 @@ export default function SettingsPage({
           label="导出用药报告"
           summary="含完成率、漏服、不适记录与用药清单"
           onClick={() => setReportOpen(true)}
+        />
+      </SettingsSection>
+
+      <SettingsSection title="帮助">
+        <SettingsListRow
+          icon={<IconGuide />}
+          label="新手使用引导"
+          summary="一步步录入慢病、药品与用药计划"
+          onClick={onStartGuide || (() => {})}
         />
       </SettingsSection>
 

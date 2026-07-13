@@ -6,6 +6,7 @@ import EditIcon from "../components/EditIcon.jsx";
 import MedicationPlanFormModal from "../components/MedicationPlanFormModal.jsx";
 import PlanEmptyState from "../components/PlanEmptyState.jsx";
 import { uid } from "../lib/medicine.js";
+import { applyManualPlanSave } from "../lib/smartCapture/planDuplicate.js";
 import {
   formatPlanPeriod,
   formatPlanRule,
@@ -71,14 +72,19 @@ export default function MedicationPlanPage({
     setEditing(null);
   }
 
-  function handleSave(payload) {
-    if (editing) {
-      onChange(
-        medicationPlans.map((plan) => (plan.id === editing.id ? { ...plan, ...payload } : plan))
-      );
-    } else {
-      onChange([...medicationPlans, { id: uid("plan"), ...payload }]);
+  function handleSave(payload, overlapAction = null) {
+    const result = applyManualPlanSave({
+      medicationPlans,
+      payload,
+      editingPlanId: editing?.id || null,
+      overlapAction,
+      newPlanId: uid("plan"),
+    });
+    if (result.skipped) {
+      closeModal();
+      return;
     }
+    onChange(result.medicationPlans);
     closeModal();
   }
 
@@ -124,6 +130,7 @@ export default function MedicationPlanPage({
         open={modalOpen}
         editing={editing}
         medicines={medicines}
+        medicationPlans={medicationPlans}
         onClose={closeModal}
         onSave={handleSave}
       />

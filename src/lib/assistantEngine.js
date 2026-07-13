@@ -27,6 +27,11 @@ const PROMPT_HANDLERS = {
   "followup-prep": answerFollowupPrep,
 };
 
+export const LOCAL_INTENT_IDS = new Set([
+  ...Object.keys(PROMPT_HANDLERS),
+  "profile-summary",
+]);
+
 export function buildWelcomeMessage(context) {
   const name = context.profile.nickname || "您";
   const diseaseHint =
@@ -34,7 +39,7 @@ export function buildWelcomeMessage(context) {
       ? `已记录 ${context.profile.chronicDiseases.join("、")} 等慢病信息。`
       : "完善档案后，我可以结合您的慢病与过敏史回答。";
 
-  return `你好，${name}！我是用药助手，可以帮你解读${context.dateLabel}的用药情况，以及最近的健康记录。\n\n${diseaseHint}\n\n点击下方快捷问题，或直接输入健康与用药相关问题（开放问题将使用 AI 结合您的档案回答）。`;
+  return `你好，${name}！我是用药助手，可以帮你解读${context.dateLabel}的用药情况，以及最近的健康记录。\n\n${diseaseHint}\n\n使用下方「问答」提问，或切换到「智能添加」粘贴医嘱、用药和复诊安排。`;
 }
 
 export function tryRuleAnswer(state, question, { promptId } = {}) {
@@ -82,6 +87,17 @@ export function tryRuleAnswer(state, question, { promptId } = {}) {
     return withDisclaimer(answerFallback(context));
   }
 
+  return null;
+}
+
+export function answerLocalIntent(state, intentId) {
+  const context = buildAssistantContext(state);
+  if (PROMPT_HANDLERS[intentId]) {
+    return withDisclaimer(PROMPT_HANDLERS[intentId](context));
+  }
+  if (intentId === "profile-summary") {
+    return withDisclaimer(answerProfileSummary(context));
+  }
   return null;
 }
 

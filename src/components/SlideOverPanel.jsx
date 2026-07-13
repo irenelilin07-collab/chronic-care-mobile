@@ -14,6 +14,10 @@ export default function SlideOverPanel({
   children,
   footer,
   variant = "overlay",
+  elevated = false,
+  reserveBottom = null,
+  disableBackdropClose = false,
+  disableHeaderClose = false,
 }) {
   const [mounted, setMounted] = useState(false);
   const [active, setActive] = useState(false);
@@ -66,13 +70,19 @@ export default function SlideOverPanel({
   const easing = active ? SLIDE_ENTER_EASE : SLIDE_EXIT_EASE;
 
   return (
-    <div className="fixed inset-0 z-30 overflow-hidden">
+    <div
+      className={`fixed inset-x-0 top-0 overflow-hidden ${elevated ? "z-50" : "z-30"}`}
+      style={{ bottom: reserveBottom || 0 }}
+    >
       {!isPush ? (
         <button
           type="button"
           aria-label="关闭"
-          onClick={onClose}
-          className="absolute inset-0 bg-black/20 transition-opacity ease-out"
+          onClick={disableBackdropClose ? undefined : onClose}
+          disabled={disableBackdropClose}
+          className={`absolute inset-0 bg-black/20 transition-opacity ease-out ${
+            disableBackdropClose ? "pointer-events-none" : ""
+          }`}
           style={{
             opacity: active ? 1 : 0,
             transitionDuration: `${durationMs}ms`,
@@ -97,8 +107,11 @@ export default function SlideOverPanel({
           <header className="sticky top-0 z-10 flex shrink-0 items-center gap-3 bg-[#f5f6f8] px-4 pb-2 pt-4">
             <button
               type="button"
-              onClick={onClose}
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#666] shadow-sm active:scale-95"
+              onClick={disableHeaderClose ? undefined : onClose}
+              disabled={disableHeaderClose}
+              className={`flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#666] shadow-sm active:scale-95 ${
+                disableHeaderClose ? "opacity-40" : ""
+              }`}
               aria-label="返回"
             >
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -112,7 +125,7 @@ export default function SlideOverPanel({
             </button>
             <h2 className="text-lg font-bold text-[#1a1a1a]">{title}</h2>
           </header>
-          <main className="min-h-0 flex-1 overflow-y-auto px-4 pb-24 pt-1">{children}</main>
+          <main className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-1">{children}</main>
           {footer ? <div className="shrink-0">{footer}</div> : null}
         </div>
       </div>

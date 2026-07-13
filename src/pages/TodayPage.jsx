@@ -10,6 +10,7 @@ import SlideOverPanel, {
 } from "../components/SlideOverPanel.jsx";
 import { dateKeyFromDate } from "../lib/dailySchedule.js";
 import { uid } from "../lib/medicine.js";
+import { applyManualPlanSave } from "../lib/smartCapture/planDuplicate.js";
 import MedicationPlanPage from "./MedicationPlanPage.jsx";
 import MonthlyBoardPage from "./MonthlyBoardPage.jsx";
 import TodayBoardPage from "./TodayBoardPage.jsx";
@@ -33,6 +34,9 @@ export default function TodayPage({
   onMedicinesChange,
   onJournalChange,
   onRegisterAddPlan,
+  onAppointmentsChange,
+  guideActive = false,
+  guideHighlight = null,
 }) {
   const [view, setView] = useState("daily");
   const [selectedDateKey, setSelectedDateKey] = useState(() => dateKeyFromDate(new Date()));
@@ -75,8 +79,18 @@ export default function TodayPage({
     setPlanFormOpen(false);
   }
 
-  function handlePlanSave(payload) {
-    onPlansChange([...medicationPlans, { id: uid("plan"), ...payload }]);
+  function handlePlanSave(payload, overlapAction = null) {
+    const result = applyManualPlanSave({
+      medicationPlans,
+      payload,
+      overlapAction,
+      newPlanId: uid("plan"),
+    });
+    if (result.skipped) {
+      closePlanForm();
+      return;
+    }
+    onPlansChange(result.medicationPlans);
     closePlanForm();
   }
 
@@ -123,6 +137,7 @@ export default function TodayPage({
         onIntakeChange={onIntakeChange}
         onMedicinesChange={onMedicinesChange}
         onAddPlan={openAddPlan}
+        guideHighlight={guideHighlight}
       />
     );
   }
@@ -178,12 +193,16 @@ export default function TodayPage({
         open={assistantOpen}
         onClose={() => setAssistantOpen(false)}
         state={assistantState}
+        onMedicinesChange={onMedicinesChange}
+        onPlansChange={onPlansChange}
+        onAppointmentsChange={onAppointmentsChange}
       />
 
       <MedicationPlanFormModal
         open={planFormOpen}
         editing={null}
         medicines={medicines}
+        medicationPlans={medicationPlans}
         onClose={closePlanForm}
         onSave={handlePlanSave}
       />

@@ -1,3 +1,4 @@
+import { normalizeOnboarding } from "./onboarding.js";
 import { normalizeProfile } from "./profile.js";
 import { normalizeJournalEntries } from "./journalEntry.js";
 import { DEFAULT_SETTINGS, normalizeSettings } from "./settings.js";
@@ -41,6 +42,11 @@ export const defaultState = {
       relation: "",
     },
   },
+  onboarding: {
+    status: "pending",
+    completedAt: null,
+    source: null,
+  },
 };
 
 export function loadState() {
@@ -55,6 +61,7 @@ export function loadState() {
       settings: normalizeSettings({ ...defaultState.settings, ...(parsed.settings || {}) }),
       profile: normalizeProfile({ ...defaultState.profile, ...(parsed.profile || {}) }),
       journalEntries: normalizeJournalEntries(parsed.journalEntries),
+      onboarding: normalizeOnboarding(parsed.onboarding),
     };
   } catch (error) {
     console.error("loadState failed:", error);

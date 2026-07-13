@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import Modal from "./Modal.jsx";
-import { requestNotificationPermission } from "../lib/medicationReminder.js";
+import {
+  getReminderPermissionMessage,
+  requestNotificationPermission,
+} from "../lib/medicationReminder.js";
 import {
   normalizeSettings,
   REMINDER_MINUTES_OPTIONS,
@@ -38,7 +41,7 @@ export default function ReminderSettingsModal({
     if (!minutesOnly && form.medicationReminder.enabled) {
       const permission = await requestNotificationPermission();
       if (permission !== "granted") {
-        alert("请允许浏览器通知权限，才能接收用药提醒");
+        alert(getReminderPermissionMessage(permission));
         return;
       }
     }

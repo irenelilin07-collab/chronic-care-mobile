@@ -18,7 +18,7 @@ function EmptyIllustration() {
   );
 }
 
-export default function PlanEmptyState({ onAdd, hasMedicines }) {
+export default function PlanEmptyState({ onAdd, hasMedicines, guideHighlight = null }) {
   return (
     <section className="app-card overflow-hidden px-6 py-10">
       <div className="text-center">
@@ -30,13 +30,18 @@ export default function PlanEmptyState({ onAdd, hasMedicines }) {
             : "建议先在「我的药箱」添加药品，再创建用药计划"}
         </p>
         {hasMedicines ? (
-          <button
-            type="button"
-            onClick={onAdd}
-            className="mt-6 w-full rounded-xl bg-[#00c896] py-3.5 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(0,200,150,0.35)]"
+          <div
+            id="guide-add-plan"
+            className={`mt-6 ${guideHighlight === "guide-add-plan" ? "guide-highlight rounded-xl" : ""}`}
           >
-            添加用药计划
-          </button>
+            <button
+              type="button"
+              onClick={onAdd}
+              className="w-full rounded-xl bg-[#00c896] py-3.5 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(0,200,150,0.35)]"
+            >
+              添加用药计划
+            </button>
+          </div>
         ) : null}
       </div>
     </section>

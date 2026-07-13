@@ -3,10 +3,9 @@ import Modal from "./Modal.jsx";
 import MedicineComboField from "./MedicineComboField.jsx";
 import StockAmountField from "./StockAmountField.jsx";
 import UnitComboField from "./UnitComboField.jsx";
-import { findCatalogItem, MEDICINE_CATALOG } from "../lib/medicineCatalog.js";
+import { findCatalogItem, isCatalogMedicineName, MEDICINE_CATALOG } from "../lib/medicineCatalog.js";
 import {
   formatDose,
-  formatSpec,
   normalizeMedicineSpec,
   parseDose,
   stockUnitOf,
@@ -14,7 +13,6 @@ import {
 
 const emptyForm = {
   name: "",
-  specAmount: "",
   specUnit: "",
   doseAmount: "",
   stockAmount: "",
@@ -32,7 +30,6 @@ export default function MedicineFormModal({ open, editing, onClose, onSave }) {
       const parsed = parseDose(editing.dose);
       setForm({
         name: editing.name,
-        specAmount: spec.specAmount,
         specUnit: spec.specUnit,
         doseAmount: parsed.doseAmount,
         stockAmount: "",
@@ -48,22 +45,38 @@ export default function MedicineFormModal({ open, editing, onClose, onSave }) {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
+  function handleNameChange(name) {
+    setForm((prev) => {
+      const next = { ...prev, name };
+      const wasCatalog = isCatalogMedicineName(prev.name);
+      const nowCatalog = isCatalogMedicineName(name);
+      if (wasCatalog && !nowCatalog) {
+        next.specUnit = "";
+        next.doseAmount = "";
+      }
+      return next;
+    });
+  }
+
   function pickName(name) {
     const catalog = MEDICINE_CATALOG.find((item) => item.name === name);
-    const parsed = catalog?.dose ? parseDose(catalog.dose) : { doseAmount: "", doseUnit: "" };
+    if (!catalog) {
+      setForm((prev) => ({ ...prev, name }));
+      return;
+    }
+    const parsed = parseDose(catalog.dose);
     setForm((prev) => ({
       ...prev,
       name,
-      specAmount: catalog?.specAmount ?? (prev.name === name ? prev.specAmount : ""),
-      specUnit: catalog?.specUnit ?? (prev.name === name ? prev.specUnit : ""),
-      doseAmount: catalog ? parsed.doseAmount : prev.name === name ? prev.doseAmount : "",
+      specUnit: catalog.specUnit ?? "",
+      doseAmount: parsed.doseAmount,
     }));
   }
 
   function pickSpecUnit(unit) {
     setForm((prev) => {
       const next = { ...prev, specUnit: unit };
-      const catalog = findCatalogItem(prev.name, prev.specAmount, unit);
+      const catalog = findCatalogItem(prev.name, "", unit);
       if (catalog?.dose) {
         next.doseAmount = parseDose(catalog.dose).doseAmount;
       }
@@ -76,14 +89,14 @@ export default function MedicineFormModal({ open, editing, onClose, onSave }) {
     const specUnit = form.specUnit.trim();
     const payload = {
       name: form.name.trim(),
-      specAmount: form.specAmount.trim(),
+      specAmount: "",
       specUnit,
-      spec: formatSpec({ specAmount: form.specAmount.trim(), specUnit }),
+      spec: specUnit,
       dose: formatDose(form.doseAmount.trim(), specUnit),
     };
 
-    if (!payload.name || !payload.specAmount || !specUnit || !payload.dose) {
-      alert("请完整填写药品信息（含规格、单次剂量与添加量）");
+    if (!payload.name || !specUnit || !payload.dose) {
+      alert("请完整填写药品名称、单位、单次剂量与添加量");
       return;
     }
 
@@ -109,43 +122,28 @@ export default function MedicineFormModal({ open, editing, onClose, onSave }) {
     });
   }
 
-  const inputClass =
-    "w-full rounded-xl border border-[#eee] bg-[#fafafa] px-3 py-3 text-sm text-[#333] outline-none focus:border-[#00c896]";
-
   return (
     <Modal title={isEdit ? "编辑药品" : "添加药品"} onClose={onClose}>
       <form noValidate onSubmit={handleSubmit} className="space-y-3">
         <MedicineComboField
           label="药品名称"
-          placeholder="输入药品名称，下拉推荐匹配"
+          placeholder="输入药品名称，可选推荐项或自定义"
           value={form.name}
-          onChange={(v) => update("name", v)}
+          onChange={handleNameChange}
           onPickName={pickName}
         />
+        <p className="-mt-1 text-xs leading-5 text-[#999]">
+          推荐列表外的药品可直接输入名称，再填写单位、剂量与库存
+        </p>
 
-        <div>
-          <p className="mb-1 text-xs text-[#999]">规格</p>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs text-[#999]">数量</label>
-              <input
-                className={inputClass}
-                placeholder="如：100 / 50"
-                value={form.specAmount}
-                onChange={(e) => update("specAmount", e.target.value)}
-              />
-            </div>
-            <UnitComboField
-              label="单位"
-              placeholder="如：片 / mg"
-              value={form.specUnit}
-              medicineName={form.name}
-              specAmount={form.specAmount}
-              onChange={(v) => update("specUnit", v)}
-              onPick={pickSpecUnit}
-            />
-          </div>
-        </div>
+        <UnitComboField
+          label="单位"
+          placeholder="如：片 / 粒 / 支"
+          value={form.specUnit}
+          medicineName={form.name}
+          onChange={(v) => update("specUnit", v)}
+          onPick={pickSpecUnit}
+        />
 
         <StockAmountField
           label="单次剂量"
@@ -155,7 +153,7 @@ export default function MedicineFormModal({ open, editing, onClose, onSave }) {
           onUnitChange={() => {}}
           amountType="text"
           amountPlaceholder="如：1"
-          unitPlaceholder="先填规格单位"
+          unitPlaceholder="先填单位"
           unitLocked={Boolean(lockedUnit)}
         />
 
@@ -174,7 +172,7 @@ export default function MedicineFormModal({ open, editing, onClose, onSave }) {
             onAmountChange={(v) => update("stockAmount", v)}
             onUnitChange={() => {}}
             amountPlaceholder="如：60"
-            unitPlaceholder="先填规格单位"
+            unitPlaceholder="先填单位"
             unitLocked={Boolean(lockedUnit)}
           />
         )}

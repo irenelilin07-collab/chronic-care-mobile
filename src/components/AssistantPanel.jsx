@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import ConfirmDialog from "./ConfirmDialog.jsx";
 import SlideOverPanel from "./SlideOverPanel.jsx";
+import SmartCaptureView from "./SmartCapturePanel.jsx";
 import {
   answerAssistantQuestionAsync,
   needsLlmAnswer,
@@ -150,7 +151,23 @@ function CollapsibleQuickPrompts({
   );
 }
 
-export default function AssistantPanel({ open, onClose, state }) {
+export default function AssistantPanel({
+  open,
+  onClose,
+  state,
+  onMedicinesChange,
+  onPlansChange,
+  onAppointmentsChange,
+  initialMode = "chat",
+  guideHighlightSmartAdd = false,
+  elevated = false,
+  reserveBottom = null,
+  disableBackdropClose = false,
+  disableHeaderClose = false,
+}) {
+  const [mode, setMode] = useState("chat");
+  const [captureFooter, setCaptureFooter] = useState(null);
+  const [captureSuccess, setCaptureSuccess] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
@@ -169,10 +186,16 @@ export default function AssistantPanel({ open, onClose, state }) {
     setThinking(false);
     setConsentOpen(false);
     setQuickPromptsCollapsed(false);
+    setMode(initialMode);
+    setCaptureFooter(null);
+    setCaptureSuccess(null);
     pendingQuestionRef.current = null;
-    const timer = window.setTimeout(() => inputRef.current?.focus(), 320);
+    const timer = window.setTimeout(() => {
+      if (initialMode !== "capture") inputRef.current?.focus();
+    }, 320);
     return () => window.clearTimeout(timer);
-  }, [open, state]);
+    // 仅在面板打开时初始化；勿依赖 state，否则添加药品后 state 更新会立刻清掉成功弹窗
+  }, [open, initialMode]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -251,13 +274,23 @@ export default function AssistantPanel({ open, onClose, state }) {
   const medicationPrompts = QUICK_PROMPTS.filter((item) => item.group === "medication");
   const healthPrompts = QUICK_PROMPTS.filter((item) => item.group === "health");
 
+  function handleCaptureSuccess({ title, message }) {
+    appendMessage("assistant", message);
+    setCaptureSuccess({ title, message });
+  }
+
   return (
     <>
       <SlideOverPanel
       open={open}
       onClose={onClose}
       title="用药助手"
+      elevated={elevated}
+      reserveBottom={reserveBottom}
+      disableBackdropClose={disableBackdropClose}
+      disableHeaderClose={disableHeaderClose}
       footer={
+        mode === "chat" ? (
         <div className="border-t border-[#eee] bg-[#f5f6f8]">
           <CollapsibleQuickPrompts
             open={open}
@@ -289,24 +322,70 @@ export default function AssistantPanel({ open, onClose, state }) {
             </button>
           </form>
         </div>
+        ) : (
+          captureFooter
+        )
       }
     >
-      <div className="mb-3 rounded-xl bg-[#fff8e6] px-3 py-2 text-xs leading-5 text-[#996600]">
-        基于您的档案与用药记录回答，仅供参考，不能替代医生或药师建议。
+      <div className="mb-4 flex rounded-xl bg-[#eef1f3] p-1">
+        <button
+          type="button"
+          onClick={() => setMode("chat")}
+          className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition-all ${
+            mode === "chat"
+              ? "bg-white text-[#1a1a1a] shadow-sm"
+              : "text-[#666]"
+          }`}
+        >
+          问答
+        </button>
+        <button
+          type="button"
+          id="guide-smart-add-tab"
+          onClick={() => setMode("capture")}
+          className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition-all ${
+            mode === "capture"
+              ? "bg-white text-[#1a1a1a] shadow-sm"
+              : "text-[#666]"
+          } ${guideHighlightSmartAdd ? "guide-highlight" : ""}`}
+        >
+          智能添加
+        </button>
       </div>
 
-      <div ref={scrollRef} className="space-y-3">
-        {messages.map((message) => (
-          <ChatBubble key={message.id} role={message.role} content={message.content} />
-        ))}
-        {thinking ? (
-          <div className="flex justify-start">
-            <div className="rounded-2xl rounded-bl-md bg-white px-4 py-3 text-sm text-[#999] shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
-              正在整理…
-            </div>
+      {mode === "chat" ? (
+        <>
+          <div className="mb-3 rounded-xl bg-[#fff8e6] px-3 py-2 text-xs leading-5 text-[#996600]">
+            基于您的档案与用药记录回答，仅供参考，不能替代医生或药师建议。
           </div>
-        ) : null}
-      </div>
+
+          <div ref={scrollRef} className="space-y-3">
+            {messages.map((message) => (
+              <ChatBubble key={message.id} role={message.role} content={message.content} />
+            ))}
+            {thinking ? (
+              <div className="flex justify-start">
+                <div className="rounded-2xl rounded-bl-md bg-white px-4 py-3 text-sm text-[#999] shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+                  正在整理…
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </>
+      ) : (
+        <SmartCaptureView
+          active={open && mode === "capture"}
+          medicines={state.medicines || []}
+          medicationPlans={state.medicationPlans || []}
+          appointments={state.appointments || []}
+          profile={state.profile}
+          onMedicinesChange={onMedicinesChange}
+          onPlansChange={onPlansChange}
+          onAppointmentsChange={onAppointmentsChange}
+          onSuccess={handleCaptureSuccess}
+          onFooterChange={setCaptureFooter}
+        />
+      )}
       </SlideOverPanel>
 
       <ConfirmDialog
@@ -317,6 +396,22 @@ export default function AssistantPanel({ open, onClose, state }) {
         cancelText="暂不"
         onConfirm={handleConsentConfirm}
         onCancel={handleConsentCancel}
+      />
+
+      <ConfirmDialog
+        open={Boolean(captureSuccess)}
+        title={captureSuccess?.title || "添加成功"}
+        message={captureSuccess?.message || ""}
+        confirmText="知道了"
+        singleAction
+        onConfirm={() => {
+          setCaptureSuccess(null);
+          if (guideHighlightSmartAdd) onClose();
+        }}
+        onCancel={() => {
+          setCaptureSuccess(null);
+          if (guideHighlightSmartAdd) onClose();
+        }}
       />
     </>
   );

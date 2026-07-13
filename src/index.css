@@ -107,3 +107,31 @@ body {
 .time-chip-row::-webkit-scrollbar {
   display: none;
 }
+
+.guide-highlight {
+  position: relative;
+  z-index: 30;
+  border-radius: 14px;
+  scroll-margin-top: 0.75rem;
+  scroll-margin-bottom: 13rem;
+  animation: guide-pulse 2s ease-in-out infinite;
+}
+
+@keyframes guide-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px #00c896,
+      0 0 0 6px rgba(0, 200, 150, 0.12);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px #00c896,
+      0 0 0 10px rgba(0, 200, 150, 0.2);
+  }
+}
+
+.guide-main-offset {
+  padding-bottom: 11rem;
+  scroll-padding-bottom: 12rem;
+}

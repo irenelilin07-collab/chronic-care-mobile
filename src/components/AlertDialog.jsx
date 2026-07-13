@@ -1,3 +1,5 @@
+import { createPortal } from "react-dom";
+
 export default function AlertDialog({
   open,
   title = "提示",
@@ -7,8 +9,8 @@ export default function AlertDialog({
 }) {
   if (!open) return null;
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-6">
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-6">
       <div
         className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-lg"
         role="alertdialog"
@@ -18,7 +20,9 @@ export default function AlertDialog({
         <h3 id="alert-dialog-title" className="text-lg font-bold text-[#1a1a1a]">
           {title}
         </h3>
-        <p className="mt-2 text-sm leading-relaxed text-[#666]">{message}</p>
+        <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-[#666]">
+          {message}
+        </p>
         <button
           type="button"
           onClick={onClose}
@@ -27,6 +31,7 @@ export default function AlertDialog({
           {confirmText}
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

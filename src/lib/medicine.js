@@ -113,7 +113,18 @@ export function formatSpec(medicine) {
   const amount = medicine.specAmount ?? parseSpecString(medicine.spec).specAmount;
   const unit = medicine.specUnit ?? parseSpecString(medicine.spec).specUnit;
   if (amount && unit) return `${amount}/${unit}`;
+  if (unit) return unit;
   return amount || medicine.spec || "";
+}
+
+export function formatMedicineDetail(medicine) {
+  const spec = formatSpec(medicine);
+  const dose = medicine.dose;
+  const unit = stockUnitOf(medicine);
+  if (!spec || spec === unit) {
+    return `单次 ${dose}`;
+  }
+  return `${spec} · 单次 ${dose}`;
 }
 
 export function normalizeMedicineSpec(medicine) {

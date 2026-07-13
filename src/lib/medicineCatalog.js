@@ -48,6 +48,12 @@ function filterByName(list, medicineName) {
   return list.filter((item) => item.name === medicineName);
 }
 
+export function isCatalogMedicineName(name) {
+  const trimmed = String(name || "").trim();
+  if (!trimmed) return false;
+  return MEDICINE_CATALOG.some((item) => item.name === trimmed);
+}
+
 export function searchMedicineNames(query) {
   const q = query.trim().toLowerCase();
   const names = [
@@ -96,7 +102,7 @@ export function findCatalogItem(medicineName, specAmount, specUnit) {
   return MEDICINE_CATALOG.find(
     (item) =>
       item.name === medicineName &&
-      item.specAmount === specAmount &&
+      (!specAmount || item.specAmount === specAmount) &&
       (!specUnit || item.specUnit === specUnit)
   );
 }

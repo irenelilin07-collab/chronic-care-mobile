@@ -38,18 +38,26 @@ function IconVoiceService({ className = "h-9 w-9" }) {
   );
 }
 
-export default function FloatingAssistantButton({ onClick, label = "用药助手" }) {
+export default function FloatingAssistantButton({
+  onClick,
+  label = "用药助手",
+  guideHighlight = false,
+}) {
   return (
     <div className="pointer-events-none fixed bottom-[calc(68px+env(safe-area-inset-bottom))] left-1/2 z-30 flex w-full max-w-md -translate-x-1/2 justify-end px-4">
-      <CircleIconButton
-        size="lg"
-        variant="primary"
-        label={label}
-        onClick={onClick}
-        className="pointer-events-auto"
+      <div
+        id="guide-assistant"
+        className={guideHighlight ? "guide-highlight pointer-events-auto rounded-full" : "pointer-events-auto"}
       >
-        <IconVoiceService />
-      </CircleIconButton>
+        <CircleIconButton
+          size="lg"
+          variant="primary"
+          label={label}
+          onClick={onClick}
+        >
+          <IconVoiceService />
+        </CircleIconButton>
+      </div>
     </div>
   );
 }

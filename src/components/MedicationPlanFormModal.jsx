@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import AlertDialog from "./AlertDialog.jsx";
+import ConfirmDialog from "./ConfirmDialog.jsx";
 import CircleIconButton from "./CircleIconButton.jsx";
 import Modal from "./Modal.jsx";
 import MedicineChestComboField from "./MedicineChestComboField.jsx";
@@ -16,6 +17,11 @@ import {
   todaysDefaultDate,
   validatePlanForm,
 } from "../lib/medicationPlan.js";
+import {
+  formatPlanOverlapDetail,
+  formatPlanOverlapWarning,
+  getPlanFormOverlapSummary,
+} from "../lib/smartCapture/planDuplicate.js";
 
 function buildEmptyForm() {
   return {
@@ -185,16 +191,27 @@ function TimeChip({ active, onClick, children, onRemove }) {
   );
 }
 
-export default function MedicationPlanFormModal({ open, editing, medicines, onClose, onSave }) {
+export default function MedicationPlanFormModal({
+  open,
+  editing,
+  medicines,
+  medicationPlans = [],
+  onClose,
+  onSave,
+}) {
   const [form, setForm] = useState(buildEmptyForm());
   const [newTime, setNewTime] = useState("");
   const [alertMessage, setAlertMessage] = useState("");
+  const [duplicateConfirmOpen, setDuplicateConfirmOpen] = useState(false);
+  const [pendingPayload, setPendingPayload] = useState(null);
 
   useEffect(() => {
     if (!open) return;
     setForm(editing ? formFromPlan(editing) : buildEmptyForm());
     setNewTime("");
     setAlertMessage("");
+    setDuplicateConfirmOpen(false);
+    setPendingPayload(null);
   }, [open, editing]);
 
   if (!open) return null;
@@ -204,6 +221,7 @@ export default function MedicationPlanFormModal({ open, editing, medicines, onCl
   }
 
   const customTimes = form.times.filter((time) => !TIME_PRESETS.includes(time));
+  const overlapSummary = getPlanFormOverlapSummary(form, medicationPlans, editing?.id);
 
   function update(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -264,7 +282,21 @@ export default function MedicationPlanFormModal({ open, editing, medicines, onCl
       showAlert(error);
       return;
     }
-    onSave(normalizePlanPayload(form, medicines, editing));
+    const payload = normalizePlanPayload(form, medicines, editing);
+    const summary = getPlanFormOverlapSummary(form, medicationPlans, editing?.id);
+    if (summary) {
+      setPendingPayload(payload);
+      setDuplicateConfirmOpen(true);
+      return;
+    }
+    onSave(payload);
+  }
+
+  function finishSave(overlapAction) {
+    if (!pendingPayload) return;
+    onSave(pendingPayload, overlapAction);
+    setPendingPayload(null);
+    setDuplicateConfirmOpen(false);
   }
 
   const inputClass =
@@ -393,6 +425,12 @@ export default function MedicationPlanFormModal({ open, editing, medicines, onCl
             </div>
             <CustomTimeAddChip value={newTime} onChange={setNewTime} onAdd={addCustomTime} />
           </div>
+
+          {overlapSummary ? (
+            <p className="form-body mt-3 rounded-xl bg-[#fff7e6] px-3 py-2.5 leading-5 text-[#e67e22]">
+              {formatPlanOverlapWarning(overlapSummary)}
+            </p>
+          ) : null}
         </div>
 
         <div className="border-t border-[#f0f0f0] pt-3">
@@ -464,6 +502,20 @@ export default function MedicationPlanFormModal({ open, editing, medicines, onCl
         open={Boolean(alertMessage)}
         message={alertMessage}
         onClose={() => setAlertMessage("")}
+      />
+
+      <ConfirmDialog
+        open={duplicateConfirmOpen}
+        title="用药计划已存在"
+        message={
+          overlapSummary
+            ? `以下安排与已有计划重合，是否仍要添加？\n\n${formatPlanOverlapDetail(overlapSummary)}`
+            : "以下安排与已有计划重合，是否仍要添加？"
+        }
+        cancelText="跳过"
+        confirmText="仍要添加"
+        onCancel={() => finishSave("skip")}
+        onConfirm={() => finishSave("force_add")}
       />
     </>
   );

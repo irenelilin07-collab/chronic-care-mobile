@@ -3,6 +3,7 @@ import PlanEmptyState from "../components/PlanEmptyState.jsx";
 import ProgressRing from "../components/ProgressRing.jsx";
 import TodayTaskCard from "../components/TodayTaskCard.jsx";
 import WeekStripe from "../components/WeekStripe.jsx";
+import { guideHighlightClass } from "../lib/appGuide.js";
 import {
   addDays,
   applyMedicineStockDelta,
@@ -31,6 +32,7 @@ export default function TodayBoardPage({
   onIntakeChange,
   onMedicinesChange,
   onAddPlan,
+  guideHighlight = null,
 }) {
   const tasks = useMemo(
     () => buildTasksForDate(selectedDateKey, medicationPlans, medicines),
@@ -72,32 +74,16 @@ export default function TodayBoardPage({
 
   if (medicationPlans.length === 0) {
     return (
-      <PlanEmptyState onAdd={onAddPlan} hasMedicines={medicines.length > 0} />
+      <PlanEmptyState
+        onAdd={onAddPlan}
+        hasMedicines={medicines.length > 0}
+        guideHighlight={guideHighlight}
+      />
     );
   }
 
-  return (
-    <div className="space-y-3 pb-24">
-      <ProgressRing percent={progress.percent} done={progress.done} total={progress.total} />
-
-      <WeekStripe
-        selectedDateKey={selectedDateKey}
-        onSelect={onDateChange}
-        onWeekShift={shiftWeek}
-        plans={medicationPlans}
-        medicines={medicines}
-        intakeRecords={intakeRecords}
-      />
-
-      <div className="px-0.5">
-        <h3 className="text-base font-bold leading-snug text-[#1a1a1a]">
-          {dateLabel}的用药任务
-        </h3>
-        {dayAdverseEntries.length > 0 ? (
-          <p className="mt-1 text-sm text-[#999]">已记 {dayAdverseEntries.length} 次不适</p>
-        ) : null}
-      </div>
-
+  const taskList = (
+    <>
       {tasks.length === 0 ? (
         <section className="app-card px-4 py-10 text-center">
           <p className="text-base font-bold text-[#1a1a1a]">当日暂无用药任务</p>
@@ -123,6 +109,37 @@ export default function TodayBoardPage({
           </section>
         ))
       )}
+    </>
+  );
+
+  return (
+    <div className="space-y-3 pb-24">
+      <ProgressRing percent={progress.percent} done={progress.done} total={progress.total} />
+
+      <WeekStripe
+        selectedDateKey={selectedDateKey}
+        onSelect={onDateChange}
+        onWeekShift={shiftWeek}
+        plans={medicationPlans}
+        medicines={medicines}
+        intakeRecords={intakeRecords}
+      />
+
+      <div className="px-0.5">
+        <h3 className="text-base font-bold leading-snug text-[#1a1a1a]">
+          {dateLabel}的用药任务
+        </h3>
+        {dayAdverseEntries.length > 0 ? (
+          <p className="mt-1 text-sm text-[#999]">已记 {dayAdverseEntries.length} 次不适</p>
+        ) : null}
+      </div>
+
+      <div
+        id="guide-checkin"
+        className={guideHighlightClass("guide-checkin", guideHighlight)}
+      >
+        {taskList}
+      </div>
     </div>
   );
 }

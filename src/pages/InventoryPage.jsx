@@ -7,10 +7,15 @@ import InventoryEmptyState from "../components/InventoryEmptyState.jsx";
 import MedicineFormModal from "../components/MedicineFormModal.jsx";
 import PlusIcon from "../components/PlusIcon.jsx";
 import StockReplenishModal from "../components/StockReplenishModal.jsx";
+import { guideHighlightClass } from "../lib/appGuide.js";
+import {
+  countPlansForMedicine,
+  removePlansForMedicine,
+} from "../lib/medicationPlan.js";
 import {
   formatStockDaysLabel,
   stockLevel,
-  formatSpec,
+  formatMedicineDetail,
   stockUnitOf,
   uid,
 } from "../lib/medicine.js";
@@ -25,9 +30,7 @@ function MedicineCard({ medicine, medicationPlans, onReplenish, onDelete }) {
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <h3 className="text-base font-bold text-[#1a1a1a]">{medicine.name}</h3>
-          <p className="mt-0.5 text-sm text-[#999]">
-            {formatSpec(medicine)} · 单次 {medicine.dose}
-          </p>
+          <p className="mt-0.5 text-sm text-[#999]">{formatMedicineDetail(medicine)}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <CircleIconButton
@@ -64,6 +67,8 @@ export default function InventoryPage({
   medicines,
   medicationPlans,
   onChange,
+  onPlansChange,
+  guideHighlight = null,
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [replenishTarget, setReplenishTarget] = useState(null);
@@ -105,14 +110,22 @@ export default function InventoryPage({
 
   function confirmDelete() {
     if (!deleteTarget) return;
-    onChange(medicines.filter((m) => m.id !== deleteTarget.id));
+    const medicineId = deleteTarget.id;
+    onChange(medicines.filter((m) => m.id !== medicineId));
+    if (onPlansChange) {
+      onPlansChange((plans) => removePlansForMedicine(plans, medicineId));
+    }
     setDeleteTarget(null);
   }
+
+  const linkedPlanCount = deleteTarget
+    ? countPlansForMedicine(medicationPlans, deleteTarget.id)
+    : 0;
 
   return (
     <div className={medicines.length > 0 ? "pb-24" : "pb-4"}>
       {medicines.length === 0 ? (
-        <InventoryEmptyState onAdd={openAdd} />
+        <InventoryEmptyState onAdd={openAdd} guideHighlight={guideHighlight} />
       ) : (
         <ul className="space-y-3">
           {medicines.map((medicine) => (
@@ -128,7 +141,12 @@ export default function InventoryPage({
       )}
 
       {medicines.length > 0 ? (
-        <FloatingAddButton label="添加药品" onClick={openAdd} />
+        <div
+          id="guide-add-medicine"
+          className={guideHighlightClass("guide-add-medicine", guideHighlight)}
+        >
+          <FloatingAddButton label="添加药品" onClick={openAdd} />
+        </div>
       ) : null}
 
       <MedicineFormModal open={modalOpen} onClose={closeModal} onSave={handleSave} />
@@ -144,7 +162,13 @@ export default function InventoryPage({
         open={Boolean(deleteTarget)}
         title="删除药品"
         message={
-          deleteTarget ? `确定删除「${deleteTarget.name}」吗？删除后无法恢复。` : ""
+          deleteTarget
+            ? `确定删除「${deleteTarget.name}」吗？删除后无法恢复。${
+                linkedPlanCount > 0
+                  ? `\n\n关联的 ${linkedPlanCount} 条用药计划将一并删除。`
+                  : ""
+              }`
+            : ""
         }
         cancelText="取消"
         confirmText="确定删除"
