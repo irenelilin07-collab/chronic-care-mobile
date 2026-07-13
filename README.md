@@ -35,3 +35,5 @@ npm run dev
 ## 数据存储
 
 所有数据保存在浏览器 LocalStorage（键名 `chronic-care-mobile-v1`）。可在「设置 → 导出用药报告」选择时段并下载 PDF 报告。
+
+> **开发中**：患者/管理员双端将迁移至 Supabase 云端存储。阶段 1 环境配置见 [docs/phase-1-supabase-setup.md](docs/phase-1-supabase-setup.md)。
