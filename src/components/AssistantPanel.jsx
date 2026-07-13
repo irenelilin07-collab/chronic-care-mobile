@@ -159,7 +159,7 @@ export default function AssistantPanel({
   onMedicinesChange,
   onPlansChange,
   onAppointmentsChange,
-  initialMode = "chat",
+  initialMode = "capture",
   guideHighlightSmartAdd = false,
   elevated = false,
   reserveBottom = null,
@@ -170,7 +170,7 @@ export default function AssistantPanel({
   solidBackdrop = false,
   contentBottomPadding = null,
 }) {
-  const [mode, setMode] = useState("chat");
+  const [mode, setMode] = useState("capture");
   const [captureFooter, setCaptureFooter] = useState(null);
   const [captureSuccess, setCaptureSuccess] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -337,17 +337,6 @@ export default function AssistantPanel({
       <div className="mb-4 flex rounded-xl border border-[#eee] bg-[#f5f6f8] p-1">
         <button
           type="button"
-          onClick={() => setMode("chat")}
-          className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition-all ${
-            mode === "chat"
-              ? "bg-white text-[#1a1a1a] shadow-sm"
-              : "text-[#666]"
-          }`}
-        >
-          问答
-        </button>
-        <button
-          type="button"
           id="guide-smart-add-tab"
           onClick={() => setMode("capture")}
           className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition-all ${
@@ -357,6 +346,17 @@ export default function AssistantPanel({
           } ${guideHighlightSmartAdd ? "guide-highlight" : ""}`}
         >
           智能添加
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("chat")}
+          className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition-all ${
+            mode === "chat"
+              ? "bg-white text-[#1a1a1a] shadow-sm"
+              : "text-[#666]"
+          }`}
+        >
+          问答
         </button>
       </div>
 

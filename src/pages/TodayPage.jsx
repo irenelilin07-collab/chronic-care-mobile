@@ -225,7 +225,7 @@ export default function TodayPage({
         onClose={() => {
           if (!guideSmartAddIntro) setAssistantOpen(false);
         }}
-        initialMode={guideSmartAddIntro ? "capture" : "chat"}
+        initialMode="capture"
         guideHighlightSmartAdd={guideHighlight === "guide-smart-add-tab" && guideSmartAddIntro}
         elevated={guideSmartAddIntro && assistantOpen}
         reserveBottom={guideSmartAddIntro ? GUIDE_SMART_ADD_PANEL_BOTTOM : null}

@@ -39,7 +39,7 @@ export function buildWelcomeMessage(context) {
       ? `已记录 ${context.profile.chronicDiseases.join("、")} 等慢病信息。`
       : "完善档案后，我可以结合您的慢病与过敏史回答。";
 
-  return `你好，${name}！我是用药助手，可以帮你解读${context.dateLabel}的用药情况，以及最近的健康记录。\n\n${diseaseHint}\n\n使用下方「问答」提问，或切换到「智能添加」粘贴医嘱、用药和复诊安排。`;
+  return `你好，${name}！我是用药助手，可以帮你解读${context.dateLabel}的用药情况，以及最近的健康记录。\n\n${diseaseHint}\n\n使用「智能添加」粘贴医嘱、用药和复诊安排，或切换到「问答」提问。`;
 }
 
 export function tryRuleAnswer(state, question, { promptId } = {}) {
