@@ -1,9 +1,8 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import PlanEmptyState from "../components/PlanEmptyState.jsx";
 import ProgressRing from "../components/ProgressRing.jsx";
 import TodayTaskCard from "../components/TodayTaskCard.jsx";
 import WeekStripe from "../components/WeekStripe.jsx";
-import { guideHighlightClass } from "../lib/appGuide.js";
 import {
   addDays,
   applyMedicineStockDelta,
@@ -45,6 +44,29 @@ export default function TodayBoardPage({
   );
 
   const slotGroups = useMemo(() => groupTasksBySlot(tasks), [tasks]);
+
+  const firstPendingTask = useMemo(
+    () =>
+      tasks.find(
+        (task) => !isIntakeTaken(intakeRecords, task.dateKey, task.planId, task.time)
+      ) || null,
+    [tasks, intakeRecords]
+  );
+
+  const [guideCheckinTargetId, setGuideCheckinTargetId] = useState(null);
+
+  useEffect(() => {
+    if (guideHighlight !== "guide-checkin") {
+      setGuideCheckinTargetId(null);
+      return;
+    }
+    if (guideCheckinTargetId) return;
+    if (firstPendingTask) {
+      setGuideCheckinTargetId(firstPendingTask.id);
+    }
+  }, [guideHighlight, guideCheckinTargetId, firstPendingTask]);
+
+  const highlightCheckin = guideHighlight === "guide-checkin" && Boolean(guideCheckinTargetId);
 
   const dayAdverseEntries = useMemo(
     () =>
@@ -97,14 +119,20 @@ export default function TodayBoardPage({
               <span className="h-px flex-1 bg-[#eee]" aria-hidden="true" />
             </div>
             <ul className="space-y-2">
-              {group.tasks.map((task) => (
+              {group.tasks.map((task) => {
+                const taken = isIntakeTaken(intakeRecords, task.dateKey, task.planId, task.time);
+                const showGuideHighlight =
+                  highlightCheckin && guideCheckinTargetId === task.id && !taken;
+                return (
                 <TodayTaskCard
                   key={task.id}
                   task={task}
-                  taken={isIntakeTaken(intakeRecords, task.dateKey, task.planId, task.time)}
+                  taken={taken}
                   onToggle={handleToggle}
+                  guideHighlight={showGuideHighlight}
                 />
-              ))}
+                );
+              })}
             </ul>
           </section>
         ))
@@ -134,12 +162,7 @@ export default function TodayBoardPage({
         ) : null}
       </div>
 
-      <div
-        id="guide-checkin"
-        className={guideHighlightClass("guide-checkin", guideHighlight)}
-      >
-        {taskList}
-      </div>
+      {taskList}
     </div>
   );
 }

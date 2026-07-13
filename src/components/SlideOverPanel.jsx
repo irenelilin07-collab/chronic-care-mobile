@@ -18,6 +18,8 @@ export default function SlideOverPanel({
   reserveBottom = null,
   disableBackdropClose = false,
   disableHeaderClose = false,
+  solidBackdrop = false,
+  contentBottomPadding = null,
 }) {
   const [mounted, setMounted] = useState(false);
   const [active, setActive] = useState(false);
@@ -80,9 +82,9 @@ export default function SlideOverPanel({
           aria-label="关闭"
           onClick={disableBackdropClose ? undefined : onClose}
           disabled={disableBackdropClose}
-          className={`absolute inset-0 bg-black/20 transition-opacity ease-out ${
+          className={`absolute inset-0 transition-opacity ease-out ${
             disableBackdropClose ? "pointer-events-none" : ""
-          }`}
+          } ${solidBackdrop ? "bg-[#f5f6f8]" : "bg-black/20"}`}
           style={{
             opacity: active ? 1 : 0,
             transitionDuration: `${durationMs}ms`,
@@ -125,7 +127,13 @@ export default function SlideOverPanel({
             </button>
             <h2 className="text-lg font-bold text-[#1a1a1a]">{title}</h2>
           </header>
-          <main className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-1">{children}</main>
+          <main
+            data-assistant-scroll
+            className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-1"
+            style={contentBottomPadding ? { paddingBottom: contentBottomPadding } : undefined}
+          >
+            {children}
+          </main>
           {footer ? <div className="shrink-0">{footer}</div> : null}
         </div>
       </div>

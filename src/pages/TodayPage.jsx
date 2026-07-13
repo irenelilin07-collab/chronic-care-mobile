@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AssistantPanel from "../components/AssistantPanel.jsx";
 import FloatingAssistantButton from "../components/FloatingAssistantButton.jsx";
 import MedicationPlanFormModal from "../components/MedicationPlanFormModal.jsx";
@@ -8,6 +8,11 @@ import SlideOverPanel, {
   SLIDE_EXIT_EASE,
   SLIDE_EXIT_MS,
 } from "../components/SlideOverPanel.jsx";
+import {
+  GUIDE_SMART_ADD_PANEL_BOTTOM,
+  GUIDE_SMART_ADD_SCROLL_PADDING,
+  isSmartAddGuideStep,
+} from "../lib/appGuide.js";
 import { dateKeyFromDate } from "../lib/dailySchedule.js";
 import { uid } from "../lib/medicine.js";
 import { applyManualPlanSave } from "../lib/smartCapture/planDuplicate.js";
@@ -37,6 +42,8 @@ export default function TodayPage({
   onAppointmentsChange,
   guideActive = false,
   guideHighlight = null,
+  guideStepId = null,
+  onGuideCaptureEvent,
 }) {
   const [view, setView] = useState("daily");
   const [selectedDateKey, setSelectedDateKey] = useState(() => dateKeyFromDate(new Date()));
@@ -45,6 +52,8 @@ export default function TodayPage({
   const [manageOpen, setManageOpen] = useState(false);
   const [manageAddSignal, setManageAddSignal] = useState(0);
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const guideSmartAddIntro = guideActive && isSmartAddGuideStep(guideStepId);
+  const prevGuideSmartAddIntroRef = useRef(false);
 
   const assistantState = useMemo(
     () => ({
@@ -74,6 +83,15 @@ export default function TodayPage({
     onRegisterAddPlan?.(openManage);
     return () => onRegisterAddPlan?.(null);
   }, [medicines.length, onRegisterAddPlan, openManage]);
+
+  useEffect(() => {
+    if (guideSmartAddIntro) {
+      setAssistantOpen(true);
+    } else if (prevGuideSmartAddIntroRef.current) {
+      setAssistantOpen(false);
+    }
+    prevGuideSmartAddIntroRef.current = guideSmartAddIntro;
+  }, [guideSmartAddIntro]);
 
   function closePlanForm() {
     setPlanFormOpen(false);
@@ -147,20 +165,26 @@ export default function TodayPage({
       <div
         className={`overflow-hidden [backface-visibility:hidden] ${
           manageOpen || assistantOpen ? "pointer-events-none" : ""
-        }`}
-        style={{
-          transform: manageOpen
-            ? "translate3d(-30%, 0, 0) scale(0.94)"
-            : assistantOpen
-              ? "translate3d(-8%, 0, 0) scale(0.98)"
-            : "translate3d(0, 0, 0) scale(1)",
-          opacity: manageOpen ? 0.88 : assistantOpen ? 0.95 : 1,
-          transformOrigin: "center center",
-          transitionProperty: "transform, opacity",
-          transitionDuration: manageOpen || assistantOpen ? `${SLIDE_ENTER_MS}ms` : `${SLIDE_EXIT_MS}ms`,
-          transitionTimingFunction: manageOpen || assistantOpen ? SLIDE_ENTER_EASE : SLIDE_EXIT_EASE,
-          willChange: manageOpen || assistantOpen ? "transform, opacity" : "auto",
-        }}
+        } ${guideSmartAddIntro ? "invisible" : ""}`}
+        style={
+          guideSmartAddIntro
+            ? undefined
+            : {
+                transform: manageOpen
+                  ? "translate3d(-30%, 0, 0) scale(0.94)"
+                  : assistantOpen
+                    ? "translate3d(-8%, 0, 0) scale(0.98)"
+                    : "translate3d(0, 0, 0) scale(1)",
+                opacity: manageOpen ? 0.88 : assistantOpen ? 0.95 : 1,
+                transformOrigin: "center center",
+                transitionProperty: "transform, opacity",
+                transitionDuration:
+                  manageOpen || assistantOpen ? `${SLIDE_ENTER_MS}ms` : `${SLIDE_EXIT_MS}ms`,
+                transitionTimingFunction:
+                  manageOpen || assistantOpen ? SLIDE_ENTER_EASE : SLIDE_EXIT_EASE,
+                willChange: manageOpen || assistantOpen ? "transform, opacity" : "auto",
+              }
+        }
       >
         <div className="mb-3 flex gap-1.5">
           {VIEW_TABS.map((tab) => {
@@ -185,13 +209,32 @@ export default function TodayPage({
         {renderBoard()}
       </div>
 
-      {!manageOpen && !assistantOpen ? (
+      {!manageOpen && !assistantOpen && !guideSmartAddIntro ? (
         <FloatingAssistantButton onClick={() => setAssistantOpen(true)} />
+      ) : null}
+
+      {guideSmartAddIntro ? (
+        <div
+          className="pointer-events-none fixed inset-0 z-40 mx-auto max-w-md bg-[#f5f6f8]"
+          aria-hidden
+        />
       ) : null}
 
       <AssistantPanel
         open={assistantOpen}
-        onClose={() => setAssistantOpen(false)}
+        onClose={() => {
+          if (!guideSmartAddIntro) setAssistantOpen(false);
+        }}
+        initialMode={guideSmartAddIntro ? "capture" : "chat"}
+        guideHighlightSmartAdd={guideHighlight === "guide-smart-add-tab" && guideSmartAddIntro}
+        elevated={guideSmartAddIntro && assistantOpen}
+        reserveBottom={guideSmartAddIntro ? GUIDE_SMART_ADD_PANEL_BOTTOM : null}
+        solidBackdrop={guideSmartAddIntro}
+        contentBottomPadding={guideSmartAddIntro ? GUIDE_SMART_ADD_SCROLL_PADDING : null}
+        disableBackdropClose={guideSmartAddIntro}
+        disableHeaderClose={guideSmartAddIntro}
+        guideStepId={guideStepId}
+        onGuideCaptureEvent={onGuideCaptureEvent}
         state={assistantState}
         onMedicinesChange={onMedicinesChange}
         onPlansChange={onPlansChange}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import AppGuidePanel from "./components/AppGuidePanel.jsx";
 import GuideHelpButton from "./components/GuideHelpButton.jsx";
 import HeaderAddButton from "./components/HeaderAddButton.jsx";
@@ -9,9 +9,10 @@ import InventoryPage from "./pages/InventoryPage.jsx";
 import AppointmentPage from "./pages/AppointmentPage.jsx";
 import SettingsPage from "./pages/SettingsPage.jsx";
 import {
+  computeGuideCanAdvance,
   getGuideStep,
   getGuideStepCount,
-  isGuideStepComplete,
+  isSmartAddGuideStep,
   shouldAutoStartGuide,
 } from "./lib/appGuide.js";
 import { markOnboardingCompleted, markOnboardingSkipped } from "./lib/onboarding.js";
@@ -109,9 +110,18 @@ export default function App({ state, setState }) {
   const [guideStepIndex, setGuideStepIndex] = useState(0);
   const [autoGuideChecked, setAutoGuideChecked] = useState(false);
   const [reminderEnableError, setReminderEnableError] = useState(null);
+  const [captureGuideProgress, setCaptureGuideProgress] = useState({
+    textParsed: false,
+    textPreviewSeen: false,
+    voiceParsed: false,
+    voicePreviewSeen: false,
+  });
 
   const guideStep = getGuideStep(guideStepIndex);
-  const guideCanAdvance = guideStep ? isGuideStepComplete(guideStep, state) : false;
+  const guideCanAdvance = useMemo(
+    () => computeGuideCanAdvance(guideStep, state, captureGuideProgress),
+    [guideStep, state, captureGuideProgress]
+  );
 
   function registerTodayAddPlan(handler) {
     setTodayAddPlan(() => handler);
@@ -182,8 +192,41 @@ export default function App({ state, setState }) {
 
   function startGuide(fromStep = 0) {
     setGuideStepIndex(fromStep);
+    setCaptureGuideProgress({
+      textParsed: false,
+      textPreviewSeen: false,
+      voiceParsed: false,
+      voicePreviewSeen: false,
+    });
     setGuideActive(true);
   }
+
+  const handleGuideCaptureEvent = useCallback((event) => {
+    if (!event?.type) return;
+    setCaptureGuideProgress((prev) => {
+      if (event.type === "textParsed") {
+        return { ...prev, textParsed: true };
+      }
+      if (event.type === "voiceParsed") {
+        return { ...prev, voiceParsed: true };
+      }
+      if (event.type === "textPreviewSeen") {
+        if (prev.textPreviewSeen) return prev;
+        return { ...prev, textPreviewSeen: true };
+      }
+      if (event.type === "voicePreviewSeen") {
+        if (prev.voicePreviewSeen) return prev;
+        return { ...prev, voicePreviewSeen: true };
+      }
+      if (event.type === "textPreviewReset") {
+        return { ...prev, textParsed: false, textPreviewSeen: false };
+      }
+      if (event.type === "voicePreviewReset") {
+        return { ...prev, voiceParsed: false, voicePreviewSeen: false };
+      }
+      return prev;
+    });
+  }, []);
 
   function finishGuide() {
     setGuideActive(false);
@@ -277,12 +320,14 @@ export default function App({ state, setState }) {
 
   const guideProps = {
     guideActive,
+    guideStepId: guideStep?.id || null,
     guideHighlight: guideActive ? guideStep?.highlight || null : null,
     onStartGuide: () => startGuide(0),
+    onGuideCaptureEvent: handleGuideCaptureEvent,
   };
 
   useEffect(() => {
-    if (!guideActive || !guideStep?.highlight) return;
+    if (!guideActive || !guideStep?.highlight || isSmartAddGuideStep(guideStep.id)) return;
     const timer = window.setTimeout(() => {
       document.getElementById(guideStep.highlight)?.scrollIntoView({
         behavior: "smooth",
@@ -352,6 +397,7 @@ export default function App({ state, setState }) {
         onSkipAll={skipAllGuide}
         onEnableReminder={handleGuideEnableReminder}
         reminderEnableError={reminderEnableError}
+        captureGuideProgress={captureGuideProgress}
       />
     </div>
   );

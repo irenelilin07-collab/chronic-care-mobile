@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import ConfirmDialog from "./ConfirmDialog.jsx";
 import SlideOverPanel from "./SlideOverPanel.jsx";
 import SmartCaptureView from "./SmartCapturePanel.jsx";
+import { getSmartAddGuidePhase } from "../lib/appGuide.js";
 import {
   answerAssistantQuestionAsync,
   needsLlmAnswer,
@@ -90,7 +91,7 @@ function CollapsibleQuickPrompts({
     <div className="border-b border-[#eee] bg-[#f5f6f8]">
       <button
         type="button"
-        className="flex w-full touch-none flex-col items-center gap-1 px-4 py-2.5 active:bg-[#eef2f4]"
+        className="flex w-full touch-none flex-col items-center gap-1 px-4 py-2.5 active:bg-[#eee]"
         onClick={handleToggle}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
@@ -164,6 +165,10 @@ export default function AssistantPanel({
   reserveBottom = null,
   disableBackdropClose = false,
   disableHeaderClose = false,
+  guideStepId = null,
+  onGuideCaptureEvent,
+  solidBackdrop = false,
+  contentBottomPadding = null,
 }) {
   const [mode, setMode] = useState("chat");
   const [captureFooter, setCaptureFooter] = useState(null);
@@ -289,6 +294,8 @@ export default function AssistantPanel({
       reserveBottom={reserveBottom}
       disableBackdropClose={disableBackdropClose}
       disableHeaderClose={disableHeaderClose}
+      solidBackdrop={solidBackdrop}
+      contentBottomPadding={contentBottomPadding}
       footer={
         mode === "chat" ? (
         <div className="border-t border-[#eee] bg-[#f5f6f8]">
@@ -327,7 +334,7 @@ export default function AssistantPanel({
         )
       }
     >
-      <div className="mb-4 flex rounded-xl bg-[#eef1f3] p-1">
+      <div className="mb-4 flex rounded-xl border border-[#eee] bg-[#f5f6f8] p-1">
         <button
           type="button"
           onClick={() => setMode("chat")}
@@ -384,6 +391,8 @@ export default function AssistantPanel({
           onAppointmentsChange={onAppointmentsChange}
           onSuccess={handleCaptureSuccess}
           onFooterChange={setCaptureFooter}
+          guidePhase={getSmartAddGuidePhase(guideStepId)}
+          onGuideCaptureEvent={onGuideCaptureEvent}
         />
       )}
       </SlideOverPanel>
@@ -406,11 +415,9 @@ export default function AssistantPanel({
         singleAction
         onConfirm={() => {
           setCaptureSuccess(null);
-          if (guideHighlightSmartAdd) onClose();
         }}
         onCancel={() => {
           setCaptureSuccess(null);
-          if (guideHighlightSmartAdd) onClose();
         }}
       />
     </>

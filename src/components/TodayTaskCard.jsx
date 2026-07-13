@@ -21,17 +21,18 @@ function CheckCircle({ checked }) {
   );
 }
 
-export default function TodayTaskCard({ task, taken, onToggle }) {
+export default function TodayTaskCard({ task, taken, onToggle, guideHighlight = false }) {
   const meta = [task.time, task.dose ? `单次 ${task.dose}` : ""].filter(Boolean).join(" · ");
 
   return (
     <li>
       <button
         type="button"
+        id={guideHighlight ? "guide-checkin" : undefined}
         onClick={() => onToggle(task, !taken)}
         className={`flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition-colors ${
           taken ? "border-[#b7eb8f] bg-[#f0fdf8]" : "border-[#f0f0f0] bg-white"
-        }`}
+        } ${guideHighlight ? "guide-highlight" : ""}`}
       >
         <CheckCircle checked={taken} />
         <div className="min-w-0 flex-1">

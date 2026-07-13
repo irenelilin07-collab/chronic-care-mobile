@@ -2,6 +2,7 @@ import {
   getGuideStepDescription,
   getGuideTaskProgress,
   isGuideTaskStep,
+  isSmartAddGuideStep,
 } from "../lib/appGuide.js";
 
 export default function AppGuidePanel({
@@ -15,6 +16,7 @@ export default function AppGuidePanel({
   onSkipAll,
   onEnableReminder,
   reminderEnableError,
+  captureGuideProgress = {},
 }) {
   if (!open || !step) return null;
 
@@ -22,11 +24,17 @@ export default function AppGuidePanel({
   const isDone = step.id === "done";
   const isTaskStep = isGuideTaskStep(step);
   const taskProgress = getGuideTaskProgress(step);
-  const description = getGuideStepDescription(step, canAdvance && isTaskStep);
+  const description = getGuideStepDescription(
+    step,
+    canAdvance && isTaskStep,
+    captureGuideProgress
+  );
 
   return (
     <div
-      className={`pointer-events-none fixed inset-x-0 bottom-[calc(56px+env(safe-area-inset-bottom))] z-40 mx-auto w-full max-w-md px-3`}
+      className={`pointer-events-none fixed inset-x-0 bottom-[calc(56px+env(safe-area-inset-bottom))] mx-auto w-full max-w-md px-3 ${
+        isSmartAddGuideStep(step.id) ? "z-[60]" : "z-40"
+      }`}
     >
       <div className="pointer-events-auto overflow-hidden rounded-2xl border border-[#d4f0e6] bg-white shadow-[0_8px_24px_rgba(0,0,0,0.1)]">
         <div className="bg-[#f0fdf8] px-4 py-3">
@@ -137,7 +145,7 @@ export default function AppGuidePanel({
                   disabled={!canAdvance}
                   className="rounded-xl bg-[#00c896] py-2.5 text-sm font-semibold text-white disabled:opacity-40"
                 >
-                  {canAdvance ? "下一步" : "请先完成页面操作"}
+                  下一步
                 </button>
               </div>
             ) : (
@@ -147,7 +155,7 @@ export default function AppGuidePanel({
                 disabled={!canAdvance}
                 className="w-full rounded-xl bg-[#00c896] py-2.5 text-sm font-semibold text-white disabled:opacity-40"
               >
-                {canAdvance ? "下一步" : "请先完成页面操作"}
+                下一步
               </button>
             )}
           </div>

@@ -131,6 +131,11 @@ body {
   }
 }
 
+#guide-capture-preview {
+  scroll-margin-top: 0.75rem;
+  scroll-margin-bottom: 13rem;
+}
+
 .guide-main-offset {
   padding-bottom: 11rem;
   scroll-padding-bottom: 12rem;

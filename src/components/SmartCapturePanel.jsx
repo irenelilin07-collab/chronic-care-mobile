@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import ConfirmDialog from "./ConfirmDialog.jsx";
 import { TIME_PRESETS } from "../lib/medicationPlan.js";
 import { searchMedicineNames } from "../lib/medicineCatalog.js";
@@ -25,6 +25,7 @@ import {
   getDraftPlanOverlapSummary,
 } from "../lib/smartCapture/planDuplicate.js";
 import { parseCaptureText } from "../lib/smartCapture/parseCaptureText.js";
+import { GUIDE_CAPTURE_DEMO_TEXT } from "../lib/appGuide.js";
 import {
   createVoiceRecognizer,
   isVoiceInputSupported,
@@ -33,6 +34,44 @@ import {
 const DOSE_AMOUNT_PRESETS = ["1", "2", "0.5", "1.5"];
 const UNIT_PRESETS = ["片", "粒", "颗", "袋", "支"];
 const STOCK_AMOUNT_PRESETS = ["30", "60", "90"];
+
+function getAssistantScrollRoot() {
+  return document.querySelector("[data-assistant-scroll]");
+}
+
+function scrollAssistantPanelToTop(behavior = "auto") {
+  const scrollRoot = getAssistantScrollRoot();
+  if (!scrollRoot) return false;
+  scrollRoot.scrollTo({ top: 0, behavior });
+  return true;
+}
+
+function scrollElementInAssistantPanel(
+  elementId,
+  { offsetTop = 12, behavior = "smooth" } = {}
+) {
+  const scrollRoot = getAssistantScrollRoot();
+  const target = document.getElementById(elementId);
+  if (!scrollRoot || !target) return false;
+
+  const rootRect = scrollRoot.getBoundingClientRect();
+  const targetRect = target.getBoundingClientRect();
+  const nextTop = scrollRoot.scrollTop + (targetRect.top - rootRect.top) - offsetTop;
+  scrollRoot.scrollTo({ top: Math.max(0, nextTop), behavior });
+  return true;
+}
+
+function scrollPreviewIntoAssistantPanel(behavior = "auto") {
+  const scrollRoot = getAssistantScrollRoot();
+  const previewEl = document.getElementById("guide-capture-preview");
+  if (!scrollRoot || !previewEl) return false;
+
+  const rootRect = scrollRoot.getBoundingClientRect();
+  const targetRect = previewEl.getBoundingClientRect();
+  const nextTop = scrollRoot.scrollTop + (targetRect.top - rootRect.top) - 8;
+  scrollRoot.scrollTo({ top: Math.max(0, nextTop), behavior });
+  return true;
+}
 
 const CAPTURE_INPUT_EXAMPLES = [
   {
@@ -57,7 +96,7 @@ const captureTitleClass = "text-[15px] font-semibold leading-snug text-[#1a1a1a]
 const captureLabelClass = "mb-1.5 text-[13px] font-medium text-[#999]";
 const captureHintClass = "mt-1.5 text-[13px] leading-5 text-[#999]";
 const captureInputClass =
-  "w-full rounded-lg border border-[#eee] bg-[#fafafa] px-3 py-2 text-[13px] text-[#333] outline-none transition-colors focus:border-[#00c896] focus:bg-white";
+  "w-full rounded-lg border border-[#eee] bg-white px-3 py-2 text-[13px] text-[#333] outline-none transition-colors focus:border-[#00c896]";
 
 const fieldInvalidWrapClass = "rounded-lg ring-2 ring-[#ff4d4f]";
 const fieldInvalidInputClass = "border-[#ff4d4f] focus:border-[#ff4d4f]";
@@ -67,7 +106,7 @@ const captureGuideTextClass = "text-[13px] leading-5";
 
 function CaptureInputGuide() {
   return (
-    <div className="rounded-xl border border-[#eef2f0] bg-[#f8faf9] px-3.5 py-3">
+    <div className="app-card px-3.5 py-3">
       <p className={`${captureGuideTextClass} font-semibold text-[#333]`}>
         粘贴医嘱，或按住下方按钮说话
       </p>
@@ -82,7 +121,7 @@ function CaptureInputGuide() {
           return (
             <li
               key={item.badge}
-              className="flex items-center gap-2 rounded-lg bg-white px-2.5 py-2"
+              className="flex items-center gap-2 rounded-lg bg-[#f5f6f8] px-2.5 py-2"
             >
               <span
                 className={`shrink-0 rounded px-1.5 py-0.5 text-[13px] font-medium ${badgeClass}`}
@@ -183,25 +222,34 @@ function CaptureCard({
   );
 }
 
-function CaptureConfirmFooter({ onReinput, onConfirm }) {
+function CaptureConfirmFooter({ onReinput, onConfirm, embedded = false }) {
+  const buttons = (
+    <div className="grid grid-cols-2 gap-2">
+      <button
+        type="button"
+        onClick={onReinput}
+        className="rounded-lg bg-white py-2.5 text-[13px] font-medium text-[#666] shadow-sm"
+      >
+        重新输入
+      </button>
+      <button
+        type="button"
+        id="guide-capture-confirm"
+        onClick={onConfirm}
+        className="rounded-lg bg-[#00c896] py-2.5 text-[13px] font-semibold text-white"
+      >
+        确认添加
+      </button>
+    </div>
+  );
+
+  if (embedded) {
+    return <div className="pt-1">{buttons}</div>;
+  }
+
   return (
     <div className="border-t border-[#eee] bg-[#f5f6f8] px-4 pt-3 pb-[calc(12px+env(safe-area-inset-bottom))]">
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={onReinput}
-          className="rounded-lg bg-white py-2.5 text-[13px] font-medium text-[#666] shadow-sm"
-        >
-          重新输入
-        </button>
-        <button
-          type="button"
-          onClick={onConfirm}
-          className="rounded-lg bg-[#00c896] py-2.5 text-[13px] font-semibold text-white"
-        >
-          确认添加
-        </button>
-      </div>
+      {buttons}
     </div>
   );
 }
@@ -427,7 +475,7 @@ function DraftItemCard({
                 warn={fieldIssues?.stockAction || fieldIssues?.stockAmount}
               >
                 <div
-                  className={`mb-2 flex rounded-lg bg-[#eef1f3] p-0.5 ${
+                  className={`mb-2 flex rounded-lg border border-[#eee] bg-[#f5f6f8] p-0.5 ${
                     fieldIssues?.stockAction ? fieldInvalidWrapClass : ""
                   }`}
                 >
@@ -480,7 +528,7 @@ function DraftItemCard({
                 })}
                 <span className="text-[13px] text-[#ccc]">|</span>
                 <input
-                  className="w-11 rounded-lg border border-[#eee] bg-[#fafafa] px-1.5 py-1.5 text-center text-[13px] text-[#333] outline-none focus:border-[#00c896]"
+                  className="w-11 rounded-lg border border-[#eee] bg-white px-1.5 py-1.5 text-center text-[13px] text-[#333] outline-none focus:border-[#00c896]"
                   value={doseParts.amount}
                   onChange={(e) => updateDose(e.target.value, doseParts.unit)}
                   placeholder="1"
@@ -607,6 +655,8 @@ export default function SmartCaptureView({
   onAppointmentsChange,
   onSuccess,
   onFooterChange,
+  guidePhase = null,
+  onGuideCaptureEvent,
 }) {
   const [step, setStep] = useState("input");
   const [text, setText] = useState("");
@@ -621,6 +671,15 @@ export default function SmartCaptureView({
   const recognizerRef = useRef(null);
   const handleConfirmRef = useRef(() => {});
   const pendingDraftItemsRef = useRef(null);
+  const prevGuidePhaseRef = useRef(null);
+  const previewDraftRef = useRef({ draftItems: [], appointmentDrafts: [] });
+  const previewScrollDoneRef = useRef(false);
+  const inputGuideScrollDoneRef = useRef(false);
+  const onGuideCaptureEventRef = useRef(onGuideCaptureEvent);
+
+  useEffect(() => {
+    onGuideCaptureEventRef.current = onGuideCaptureEvent;
+  }, [onGuideCaptureEvent]);
 
   const profileHint = (profile?.chronicDiseases || []).join("、");
   const voiceSupported = isVoiceInputSupported();
@@ -637,7 +696,55 @@ export default function SmartCaptureView({
     setRiskConfirmOpen(false);
     setDuplicateConfirmOpen(false);
     setShowValidation(false);
+    prevGuidePhaseRef.current = null;
+    previewDraftRef.current = { draftItems: [], appointmentDrafts: [] };
+    previewScrollDoneRef.current = false;
+    inputGuideScrollDoneRef.current = false;
   }, [active]);
+
+  useEffect(() => {
+    if (step !== "confirm") {
+      previewScrollDoneRef.current = false;
+    }
+    if (step !== "input") {
+      inputGuideScrollDoneRef.current = false;
+    }
+  }, [step]);
+
+  useEffect(() => {
+    if (!active || !guidePhase || guidePhase === prevGuidePhaseRef.current) return;
+    prevGuidePhaseRef.current = guidePhase;
+    setError("");
+    stopListening();
+
+    if (guidePhase === "text") {
+      setStep("input");
+      setText(GUIDE_CAPTURE_DEMO_TEXT);
+      setDraftItems([]);
+      setAppointmentDrafts([]);
+      previewDraftRef.current = { draftItems: [], appointmentDrafts: [] };
+      previewScrollDoneRef.current = false;
+      inputGuideScrollDoneRef.current = false;
+      onFooterChange?.(null);
+      onGuideCaptureEvent?.({ type: "textPreviewReset" });
+      window.requestAnimationFrame(() => {
+        scrollAssistantPanelToTop("auto");
+      });
+      return;
+    }
+
+    if (guidePhase === "voice") {
+      setStep("input");
+      setText("");
+      previewScrollDoneRef.current = false;
+      inputGuideScrollDoneRef.current = false;
+      onFooterChange?.(null);
+      onGuideCaptureEvent?.({ type: "voicePreviewReset" });
+      window.requestAnimationFrame(() => {
+        scrollAssistantPanelToTop("auto");
+      });
+    }
+  }, [active, guidePhase, onFooterChange, onGuideCaptureEvent]);
 
   useEffect(() => {
     return () => {
@@ -696,10 +803,21 @@ export default function SmartCaptureView({
         setStep("input");
         return;
       }
-      setDraftItems(enrichMedicineDrafts(result.medicines || [], medicines, medicationPlans));
+      const enriched = enrichMedicineDrafts(result.medicines || [], medicines, medicationPlans);
+      setDraftItems(enriched);
       setAppointmentDrafts(result.appointments || []);
+      previewDraftRef.current = {
+        draftItems: enriched,
+        appointmentDrafts: result.appointments || [],
+      };
       setShowValidation(false);
       setStep("confirm");
+      if (guidePhase === "text") {
+        onGuideCaptureEvent?.({ type: "textParsed" });
+      }
+      if (guidePhase === "voice") {
+        onGuideCaptureEvent?.({ type: "voiceParsed" });
+      }
     } catch {
       setError("识别失败，请检查网络后重试。");
     } finally {
@@ -845,10 +963,74 @@ export default function SmartCaptureView({
   const handleReinput = useCallback(() => {
     setShowValidation(false);
     setStep("input");
-  }, []);
+    inputGuideScrollDoneRef.current = false;
+    previewScrollDoneRef.current = false;
+    window.requestAnimationFrame(() => {
+      scrollAssistantPanelToTop("auto");
+    });
+    if (guidePhase === "text") {
+      onGuideCaptureEvent?.({ type: "textPreviewReset" });
+    } else if (guidePhase === "voice") {
+      onGuideCaptureEvent?.({ type: "voicePreviewReset" });
+    }
+  }, [guidePhase, onGuideCaptureEvent]);
 
   useEffect(() => {
-    if (!active || step !== "confirm") {
+    if (!active || !guidePhase || step !== "input" || inputGuideScrollDoneRef.current) {
+      return undefined;
+    }
+
+    inputGuideScrollDoneRef.current = true;
+    const timer = window.setTimeout(() => {
+      scrollAssistantPanelToTop("auto");
+    }, 380);
+
+    return () => window.clearTimeout(timer);
+  }, [active, guidePhase, step]);
+
+  useLayoutEffect(() => {
+    if (!active || step !== "confirm" || previewScrollDoneRef.current) return undefined;
+
+    previewScrollDoneRef.current = true;
+
+    let cancelled = false;
+    let seenTimer = null;
+    const seenType =
+      guidePhase === "text"
+        ? "textPreviewSeen"
+        : guidePhase === "voice"
+          ? "voicePreviewSeen"
+          : null;
+
+    function markPreviewSeen() {
+      if (!cancelled && seenType) {
+        onGuideCaptureEventRef.current?.({ type: seenType });
+      }
+    }
+
+    const timer = window.setTimeout(() => {
+      if (scrollPreviewIntoAssistantPanel("auto")) {
+        seenTimer = window.setTimeout(markPreviewSeen, 120);
+      } else {
+        window.requestAnimationFrame(() => {
+          if (scrollPreviewIntoAssistantPanel("auto")) {
+            seenTimer = window.setTimeout(markPreviewSeen, 120);
+          } else if (seenType) {
+            markPreviewSeen();
+          }
+        });
+      }
+    }, 220);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      if (seenTimer) window.clearTimeout(seenTimer);
+    };
+  }, [active, step, guidePhase]);
+
+  useEffect(() => {
+    if (!active || step !== "confirm" || guidePhase) {
       onFooterChange?.(null);
       return undefined;
     }
@@ -861,7 +1043,7 @@ export default function SmartCaptureView({
     );
 
     return () => onFooterChange?.(null);
-  }, [active, step, handleReinput, onFooterChange]);
+  }, [active, step, guidePhase, handleReinput, onFooterChange]);
 
   const totalDraftCount = draftItems.length + appointmentDrafts.length;
   const completedDraftCount =
@@ -875,6 +1057,7 @@ export default function SmartCaptureView({
           <CaptureInputGuide />
 
           <textarea
+            id="guide-capture-textarea"
             className={`${inputClass} min-h-[128px] resize-none leading-6`}
             placeholder="粘贴（或输入）文本"
             value={text}
@@ -884,6 +1067,7 @@ export default function SmartCaptureView({
           {voiceSupported ? (
             <button
               type="button"
+              id="guide-capture-voice"
               onTouchStart={(e) => {
                 e.preventDefault();
                 startListening();
@@ -899,7 +1083,7 @@ export default function SmartCaptureView({
                 listening
                   ? "bg-[#00c896] text-white"
                   : "bg-white text-[#00a87a] shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
-              }`}
+              } ${guidePhase === "voice" ? "guide-highlight" : ""}`}
             >
               <span className="text-base" aria-hidden="true">
                 {listening ? "◉" : "🎤"}
@@ -914,16 +1098,22 @@ export default function SmartCaptureView({
 
           <button
             type="button"
+            id="guide-capture-parse"
             disabled={parsing}
             onClick={handleParse}
-            className="w-full rounded-xl bg-[#00c896] py-3.5 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(0,200,150,0.3)] disabled:opacity-50"
+            className={`w-full rounded-xl bg-[#00c896] py-3.5 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(0,200,150,0.3)] disabled:opacity-50 ${
+              guidePhase === "text" || guidePhase === "voice" ? "guide-highlight" : ""
+            }`}
           >
             {parsing ? "识别中…" : "识别并预览"}
           </button>
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="rounded-lg border border-[#ffe8cc] bg-[#fffaf3] px-3 py-2.5">
+          <div
+            id="guide-capture-preview"
+            className="rounded-lg border border-[#ffe8cc] bg-[#fffaf3] px-3 py-2.5"
+          >
             <p className="text-[15px] font-semibold text-[#1a1a1a]">
               识别到 {totalDraftCount} 项，请核对后添加
             </p>
@@ -968,6 +1158,14 @@ export default function SmartCaptureView({
               />
             ))}
           </div>
+
+          {guidePhase ? (
+            <CaptureConfirmFooter
+              embedded
+              onReinput={handleReinput}
+              onConfirm={() => handleConfirmRef.current()}
+            />
+          ) : null}
         </div>
       )}
 
