@@ -1,5 +1,10 @@
 import { findCatalogItem, MEDICINE_CATALOG } from "../medicineCatalog.js";
 import { formatDose, formatSpec, parseDose } from "../medicine.js";
+import {
+  extractDoseFromText,
+  extractLikelyMedicineName,
+  looksLikeClockHourDose,
+} from "./medicineName.js";
 import { resolveAliasName } from "./medicineAliases.js";
 
 function scoreNameMatch(query, catalogName) {
@@ -49,20 +54,27 @@ export function matchMedicineFromCatalog(rawName) {
 }
 
 export function resolveCatalogFields(rawItem) {
-  const matched = matchMedicineFromCatalog(rawItem.rawName || rawItem.name || "");
+  const original = String(rawItem.rawName || rawItem.name || "").trim();
+  const cleaned = extractLikelyMedicineName(original) || original;
+  const matched = matchMedicineFromCatalog(cleaned);
   const specAmount = rawItem.specAmount || matched.specAmount;
   const specUnit = rawItem.specUnit || matched.specUnit;
   const catalogItem = findCatalogItem(matched.name, specAmount, specUnit);
 
+  const doseFromText = extractDoseFromText(original);
+  const rawDose = String(rawItem.dose || "").trim();
   const dose =
-    rawItem.dose ||
+    (looksLikeClockHourDose(rawDose) && doseFromText ? doseFromText : "") ||
+    rawDose ||
+    doseFromText ||
     (catalogItem?.dose
       ? catalogItem.dose
       : matched.dose || (specUnit ? `1${specUnit}` : "1片"));
 
   return {
-    rawName: rawItem.rawName || rawItem.name || matched.name,
-    name: matched.name,
+    rawName: original || matched.name,
+    // 目录命中用标准名，否则用清洗后的药名（不强制匹配目录）
+    name: matched.catalogMatch ? matched.name : cleaned || matched.name,
     specAmount: specAmount || matched.specAmount,
     specUnit: specUnit || matched.specUnit,
     spec:

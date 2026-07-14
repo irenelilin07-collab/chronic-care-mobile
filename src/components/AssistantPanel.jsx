@@ -360,27 +360,29 @@ export default function AssistantPanel({
         </button>
       </div>
 
-      {mode === "chat" ? (
-        <>
-          <div className="mb-3 rounded-xl bg-[#fff8e6] px-3 py-2 text-xs leading-5 text-[#996600]">
-            基于您的档案与用药记录回答，仅供参考，不能替代医生或药师建议。
-          </div>
+      {/* 两个模块都保持挂载，切换时不丢智能添加草稿 */}
+      <div className={mode === "chat" ? "block" : "hidden"}>
+        <div className="mb-3 rounded-xl bg-[#fff8e6] px-3 py-2 text-xs leading-5 text-[#996600]">
+          基于您的档案与用药记录回答，仅供参考，不能替代医生或药师建议。
+        </div>
 
-          <div ref={scrollRef} className="space-y-3">
-            {messages.map((message) => (
-              <ChatBubble key={message.id} role={message.role} content={message.content} />
-            ))}
-            {thinking ? (
-              <div className="flex justify-start">
-                <div className="rounded-2xl rounded-bl-md bg-white px-4 py-3 text-sm text-[#999] shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
-                  正在整理…
-                </div>
+        <div ref={scrollRef} className="space-y-3">
+          {messages.map((message) => (
+            <ChatBubble key={message.id} role={message.role} content={message.content} />
+          ))}
+          {thinking ? (
+            <div className="flex justify-start">
+              <div className="rounded-2xl rounded-bl-md bg-white px-4 py-3 text-sm text-[#999] shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+                正在整理…
               </div>
-            ) : null}
-          </div>
-        </>
-      ) : (
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      <div className={mode === "capture" ? "block" : "hidden"}>
         <SmartCaptureView
+          panelOpen={open}
           active={open && mode === "capture"}
           medicines={state.medicines || []}
           medicationPlans={state.medicationPlans || []}
@@ -394,7 +396,7 @@ export default function AssistantPanel({
           guidePhase={getSmartAddGuidePhase(guideStepId)}
           onGuideCaptureEvent={onGuideCaptureEvent}
         />
-      )}
+      </div>
       </SlideOverPanel>
 
       <ConfirmDialog

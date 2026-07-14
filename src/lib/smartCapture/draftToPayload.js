@@ -36,7 +36,7 @@ export function applyCaptureDraft(
     let medicineId = existingMedicine?.id;
 
     if (!medicineId) {
-      const specUnit = item.specUnit || "片";
+      const specUnit = String(item.specUnit || "").trim() || "片";
       const specAmount = item.specAmount || "—";
       const stock = stockDelta;
       const medicine = {
@@ -54,6 +54,7 @@ export function applyCaptureDraft(
       medicineId = medicine.id;
       createdMedicines.push(item.name);
     } else if (shouldAddStock && stockDelta > 0) {
+      // 同药追加只加数量，单位强制沿用原药箱
       nextMedicines = nextMedicines.map((medicine) =>
         medicine.id === medicineId
           ? { ...medicine, stock: Number(medicine.stock) + stockDelta }
@@ -88,9 +89,9 @@ export function applyCaptureDraft(
             times: item.times,
             weekdays: item.weekdays || [],
             intervalDays: String(item.intervalDays || 2),
-            startDate: todaysDefaultDate(),
-            endDate: "",
-            longTerm: true,
+            startDate: item.startDate || todaysDefaultDate(),
+            endDate: item.longTerm ? "" : item.endDate || "",
+            longTerm: typeof item.longTerm === "boolean" ? item.longTerm : true,
           },
           nextMedicines
         );
@@ -156,13 +157,22 @@ export function getMedicineDraftFieldIssues(item) {
     times: false,
     stockAction: false,
     stockAmount: false,
+    stockUnit: false,
+    planPeriod: false,
   };
 
   const stockOnly = item.captureMode === "stock_only";
+  const needsNewStockUnit =
+    item.inventoryMode === "new" || (stockOnly && item.inventoryMode !== "existing");
 
   if (!stockOnly) {
     if (!item.times?.length) issues.times = true;
     if (!String(item.dose || "").trim()) issues.dose = true;
+    if (!item.startDate) issues.planPeriod = true;
+    else if (!item.longTerm) {
+      if (!item.endDate) issues.planPeriod = true;
+      else if (item.endDate < item.startDate) issues.planPeriod = true;
+    }
   }
 
   if (item.inventoryMode === "new" || stockOnly) {
@@ -176,6 +186,10 @@ export function getMedicineDraftFieldIssues(item) {
     }
   }
 
+  if (needsNewStockUnit && !String(item.specUnit || "").trim()) {
+    issues.stockUnit = true;
+  }
+
   return issues;
 }
 
@@ -183,10 +197,16 @@ export function getMedicineDraftIssue(item) {
   const issues = getMedicineDraftFieldIssues(item);
   if (issues.times) return "请选择服药时间";
   if (issues.dose) return "请填写单次剂量";
+  if (issues.planPeriod) {
+    if (!item.startDate) return "请填写开始日期";
+    if (!item.longTerm && !item.endDate) return "请填写结束日期或勾选长期服用";
+    return "结束日期不能早于开始日期";
+  }
   if (issues.stockAction) return "请选择库存处理方式";
   if (issues.stockAmount) {
     return item.inventoryMode === "existing" ? "请填写追加数量" : "请填写药箱数量";
   }
+  if (issues.stockUnit) return "请填写剂量单位";
   return "";
 }
 

@@ -18,9 +18,9 @@ React + Vite + Tailwind 移动端 Web App，帮助慢性病患者管理用药、
 - 右上角 + 添加复诊计划
 
 ### 设置
-- 用药提醒（每个任务可提前 5 / 10 / 15 / 30 分钟浏览器通知）
 - 导出用药报告（可选时段，导出 PDF）
 - 基本信息、确诊慢病、药物过敏史、紧急联系人
+- App 内消息中心（用药页铃铛：到点 / 逾期 / 过期未打卡）
 
 ## 本地运行
 
@@ -36,4 +36,10 @@ npm run dev
 
 所有数据保存在浏览器 LocalStorage（键名 `chronic-care-mobile-v1`）。可在「设置 → 导出用药报告」选择时段并下载 PDF 报告。
 
-> **开发中**：患者/管理员双端将迁移至 Supabase 云端存储。阶段 1 环境配置见 [docs/phase-1-supabase-setup.md](docs/phase-1-supabase-setup.md)。
+> **开发中**：患者/管理员双端将迁移至 Supabase 云端存储。
+>
+> - 阶段 1 环境配置：[docs/phase-1-supabase-setup.md](docs/phase-1-supabase-setup.md)
+> - 阶段 2 登录注册：[docs/phase-2-auth.md](docs/phase-2-auth.md)
+> - 阶段 3 云端同步：[docs/phase-3-sync.md](docs/phase-3-sync.md)
+> - 阶段 4 管理员开关与邀请码：[docs/phase-4-admin-invite.md](docs/phase-4-admin-invite.md)
+> - 阶段 5 双端 UI 差异：[docs/phase-5-role-ui.md](docs/phase-5-role-ui.md)

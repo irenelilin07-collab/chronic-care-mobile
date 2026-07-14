@@ -65,6 +65,13 @@ body {
   line-height: 1.4;
 }
 
+.form-subtitle {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #999;
+}
+
 .form-body {
   font-size: 14px;
   line-height: 1.5;

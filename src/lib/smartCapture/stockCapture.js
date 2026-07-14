@@ -124,7 +124,7 @@ export function parseStockOnlySegment(segment) {
     source: "rule",
     catalogMatch: resolved.catalogMatch,
     needsExtraConfirm: isHighRiskMedicineName(resolved.name),
-    warnings: resolved.catalogMatch ? [] : ["药名未完全匹配目录，请确认"],
+    warnings: [],
   };
 }
 

@@ -1,11 +1,11 @@
 import { dateKeyFromDate, buildTasksForDate, isIntakeTaken } from "./dailySchedule.js";
+import { getTaskTimingStatus } from "./overdueCheckin.js";
 import { TABS } from "./storage.js";
 
 const TASK_STEP_IDS = [
   "diseases",
   "medicine",
   "plan",
-  "reminder",
   "checkin",
   "smart-add-text",
   "smart-add-voice",
@@ -31,105 +31,85 @@ export function isSmartAddGuideStep(stepId) {
 export const APP_GUIDE_STEPS = [
   {
     id: "welcome",
-    title: "欢迎使用慢病用药小管家",
-    description:
-      "接下来会带您使用 App 的真实功能：录入慢病、添加药品、创建计划、完成打卡，并体验智能添加。",
+    title: "欢迎使用",
+    description: "跟着高亮提示操作几步，就能上手。",
     tab: null,
     optional: false,
   },
   {
     id: "diseases",
-    title: "填写确诊慢病",
-    description: "请点击页面中高亮的「确诊慢病」，选择您的慢病类型。",
-    completedDescription: "慢病信息已保存，点击「下一步」继续。",
+    title: "确诊慢病",
+    description: "点高亮区域，选择慢病。",
     tab: TABS.profile,
     highlight: "guide-diseases",
     optional: false,
     completeWhen: (state) => (state.profile?.chronicDiseases || []).length > 0,
-    completeLabel: "已填写慢病信息",
+    completeLabel: "已填写",
   },
   {
     id: "medicine",
-    title: "添加药品到药箱",
-    description: "请点击页面中高亮的「添加药品」，录入药物名称、规格和库存。",
-    completedDescription: "药品已添加，点击「下一步」继续。",
+    title: "添加药品",
+    description: "点高亮按钮，填写药名和总量。",
     tab: TABS.inventory,
     highlight: "guide-add-medicine",
     optional: false,
     completeWhen: (state) => (state.medicines || []).length > 0,
-    completeLabel: "已添加药品",
+    completeLabel: "已添加",
   },
   {
     id: "plan",
-    title: "创建用药计划",
-    description: "请点击页面中高亮的按钮，设置每日服药时间与规则。",
-    completedDescription: "用药计划已创建，点击「下一步」继续。",
+    title: "用药计划",
+    description: "点右上角管理，新建今日可打卡的计划。",
     tab: TABS.today,
     highlight: "guide-add-plan",
     optional: false,
-    completeWhen: (state) => (state.medicationPlans || []).length > 0,
-    completeLabel: "已创建用药计划",
-  },
-  {
-    id: "reminder",
-    title: "开启用药提醒",
-    description:
-      "点击下方「开启用药提醒」按钮，或在页面中高亮处打开开关。浏览器会请求通知权限，请选择「允许」。",
-    completedDescription: "提醒已开启，点击「下一步」继续。",
-    tab: TABS.profile,
-    highlight: "guide-reminder",
-    optional: true,
-    completeWhen: (state) => Boolean(state.settings?.medicationReminder?.enabled),
-    completeLabel: "已开启提醒",
+    // 仅有计划不够：必须能在今日看板生成任务，否则用户会看到空状态却以为已完成
+    completeWhen: (state) => {
+      const todayKey = dateKeyFromDate(new Date());
+      return (
+        buildTasksForDate(
+          todayKey,
+          state.medicationPlans || [],
+          state.medicines || []
+        ).length > 0
+      );
+    },
+    completeLabel: "已创建",
   },
   {
     id: "checkin",
-    title: "完成今日打卡",
-    description: "请点击页面中高亮的用药任务卡片完成打卡，直至今日全部任务打卡完成。",
-    completedDescription: "今日用药已全部打卡，点击「下一步」继续。",
+    title: "今日打卡",
+    description: "点高亮卡片，完成任意一次打卡。",
     tab: TABS.today,
     highlight: "guide-checkin",
     optional: false,
-    completeWhen: (state) => {
-      const todayKey = dateKeyFromDate(new Date());
-      const tasks = buildTasksForDate(
-        todayKey,
-        state.medicationPlans || [],
-        state.medicines || []
-      );
-      if (tasks.length === 0) return true;
-      return hasTodayAllCheckIns(state);
-    },
-    completeLabel: "已完成打卡",
+    completeWhen: (state) => hasTodayValidCheckIn(state),
+    completeLabel: "已打卡",
   },
   {
     id: "smart-add-text",
-    title: "智能添加：文字输入",
-    description:
-      "已在输入框填入示例文字。请点击高亮的「识别并预览」，浏览识别结果后点「下一步」继续。",
-    previewDescription: "请浏览上方识别结果，确认无误后点「下一步」继续。",
-    completedDescription: "已看到识别预览，点击「下一步」继续。",
+    title: "智能添加",
+    description: "示例已填好，点「识别并预览」。",
+    previewDescription: "核对结果后，点「下一步」。",
     tab: TABS.today,
     highlight: "guide-capture-parse",
     optional: false,
-    completeLabel: "已完成文字识别",
+    completeLabel: "已识别",
   },
   {
     id: "smart-add-voice",
-    title: "智能添加：语音输入",
-    description:
-      "请按住「按住说话」录入，例如：「每天早饭后吃一片氨氯地平」。录完后点击高亮的「识别并预览」查看结果，再点「下一步」。也可点「跳过」。",
-    previewDescription: "请浏览上方识别结果，确认无误后点「下一步」继续。",
-    completedDescription: "已完成语音识别预览，点击「下一步」继续。",
+    title: "语音添加",
+    description: "按住「语音识别」，再点「识别并预览」。",
+    previewDescription: "核对结果后，点「下一步」。",
     tab: TABS.today,
     highlight: "guide-capture-parse",
     optional: true,
-    completeLabel: "已完成语音识别",
+    completeLabel: "已识别",
   },
   {
     id: "done",
-    title: "引导完成",
-    description: "您已掌握 App 的核心用法。随时点击左上角「?」可重新查看引导。",
+    title: "可以开始用了",
+    description: "需要时点左上角「?」，可再看一遍。",
     tab: TABS.today,
     optional: false,
   },
@@ -157,7 +137,8 @@ export function getGuideTaskProgress(step) {
 
 export function getGuideStepDescription(step, completed, captureGuideProgress = {}) {
   if (!step) return "";
-  if (completed && step.completedDescription) return step.completedDescription;
+  // 完成后只靠绿色勾 Chip +「下一步」，不再重复长文案
+  if (completed && isGuideTaskStep(step)) return "";
   if (step.id === "smart-add-text" && captureGuideProgress.textParsed && step.previewDescription) {
     return step.previewDescription;
   }
@@ -180,6 +161,22 @@ export function hasTodayCheckIn(state) {
   );
 }
 
+/** 引导用：今日至少完成一次「未过期」任务的打卡（过期任务不算） */
+export function hasTodayValidCheckIn(state) {
+  const todayKey = dateKeyFromDate(new Date());
+  const tasks = buildTasksForDate(
+    todayKey,
+    state.medicationPlans || [],
+    state.medicines || []
+  );
+  if (tasks.length === 0) return false;
+
+  return tasks.some((task) => {
+    if (getTaskTimingStatus(task, state.intakeRecords) === "expired") return false;
+    return isIntakeTaken(state.intakeRecords, task.dateKey, task.planId, task.time);
+  });
+}
+
 export function hasTodayAllCheckIns(state) {
   const todayKey = dateKeyFromDate(new Date());
   const tasks = buildTasksForDate(
@@ -193,7 +190,9 @@ export function hasTodayAllCheckIns(state) {
   );
 }
 
-export function shouldAutoStartGuide(state) {
+export function shouldAutoStartGuide(state, { role } = {}) {
+  // 管理员协助管理，不自动打断；仍可通过顶栏「?」手动打开
+  if (role === "admin") return false;
   const onboarding = state.onboarding || {};
   if (onboarding.status === "completed" || onboarding.status === "skipped") {
     return false;
@@ -223,4 +222,3 @@ export function computeGuideCanAdvance(step, state, captureGuideProgress = {}) {
       return isGuideStepComplete(step, state);
   }
 }
-

@@ -38,7 +38,6 @@ export default function MonthlyBoardPage({
   medicines,
   medicationPlans,
   intakeRecords,
-  onAddPlan,
 }) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -65,7 +64,7 @@ export default function MonthlyBoardPage({
 
   if (medicationPlans.length === 0) {
     return (
-      <PlanEmptyState onAdd={onAddPlan} hasMedicines={medicines.length > 0} />
+      <PlanEmptyState hasMedicines={medicines.length > 0} />
     );
   }
 

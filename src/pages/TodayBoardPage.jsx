@@ -14,6 +14,11 @@ import {
   toggleIntakeRecord,
 } from "../lib/dailySchedule.js";
 import { entriesForDate } from "../lib/journalEntry.js";
+import {
+  canToggleCheckin,
+  getTaskTimingStatus,
+  OVERDUE_REFRESH_MS,
+} from "../lib/overdueCheckin.js";
 
 function formatSelectedDate(dateKey) {
   const today = dateKeyFromDate(new Date());
@@ -30,9 +35,19 @@ export default function TodayBoardPage({
   journalEntries,
   onIntakeChange,
   onMedicinesChange,
-  onAddPlan,
   guideHighlight = null,
 }) {
+  const todayKey = dateKeyFromDate(new Date());
+  const [overdueTick, setOverdueTick] = useState(0);
+
+  useEffect(() => {
+    if (selectedDateKey !== todayKey) return undefined;
+    const timer = window.setInterval(() => {
+      setOverdueTick((value) => value + 1);
+    }, OVERDUE_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [selectedDateKey, todayKey]);
+
   const tasks = useMemo(
     () => buildTasksForDate(selectedDateKey, medicationPlans, medicines),
     [selectedDateKey, medicationPlans, medicines]
@@ -47,10 +62,19 @@ export default function TodayBoardPage({
 
   const firstPendingTask = useMemo(
     () =>
-      tasks.find(
-        (task) => !isIntakeTaken(intakeRecords, task.dateKey, task.planId, task.time)
-      ) || null,
-    [tasks, intakeRecords]
+      tasks.find((task) => {
+        if (selectedDateKey === todayKey) {
+          return canToggleCheckin(task, intakeRecords) && !isIntakeTaken(
+            intakeRecords,
+            task.dateKey,
+            task.planId,
+            task.time
+          );
+        }
+        return !isIntakeTaken(intakeRecords, task.dateKey, task.planId, task.time);
+      }) || null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tasks, intakeRecords, selectedDateKey, todayKey, overdueTick]
   );
 
   const [guideCheckinTargetId, setGuideCheckinTargetId] = useState(null);
@@ -81,6 +105,8 @@ export default function TodayBoardPage({
   function handleToggle(task, nextTaken) {
     const currentlyTaken = isIntakeTaken(intakeRecords, task.dateKey, task.planId, task.time);
     if (currentlyTaken === nextTaken) return;
+    // 超过 1 小时未打卡：不可再打卡；已打卡的仍可取消
+    if (nextTaken && !canToggleCheckin(task, intakeRecords)) return;
 
     onIntakeChange(toggleIntakeRecord(intakeRecords, task.id, nextTaken));
 
@@ -95,21 +121,14 @@ export default function TodayBoardPage({
   }
 
   if (medicationPlans.length === 0) {
-    return (
-      <PlanEmptyState
-        onAdd={onAddPlan}
-        hasMedicines={medicines.length > 0}
-        guideHighlight={guideHighlight}
-      />
-    );
+    return <PlanEmptyState hasMedicines={medicines.length > 0} />;
   }
 
   const taskList = (
     <>
       {tasks.length === 0 ? (
-        <section className="app-card px-4 py-10 text-center">
-          <p className="text-base font-bold text-[#1a1a1a]">当日暂无用药任务</p>
-          <p className="mt-2 text-sm text-[#999]">该日期没有需要服用的药品</p>
+        <section className="app-card px-4 py-8 text-center">
+          <p className="text-sm text-[#999]">今日暂无用药任务</p>
         </section>
       ) : (
         slotGroups.map((group, index) => (
@@ -121,16 +140,23 @@ export default function TodayBoardPage({
             <ul className="space-y-2">
               {group.tasks.map((task) => {
                 const taken = isIntakeTaken(intakeRecords, task.dateKey, task.planId, task.time);
+                const timingStatus =
+                  selectedDateKey === todayKey
+                    ? getTaskTimingStatus(task, intakeRecords)
+                    : taken
+                      ? "taken"
+                      : "scheduled";
                 const showGuideHighlight =
                   highlightCheckin && guideCheckinTargetId === task.id && !taken;
                 return (
-                <TodayTaskCard
-                  key={task.id}
-                  task={task}
-                  taken={taken}
-                  onToggle={handleToggle}
-                  guideHighlight={showGuideHighlight}
-                />
+                  <TodayTaskCard
+                    key={task.id}
+                    task={task}
+                    taken={taken}
+                    onToggle={handleToggle}
+                    guideHighlight={showGuideHighlight}
+                    timingStatus={timingStatus}
+                  />
                 );
               })}
             </ul>

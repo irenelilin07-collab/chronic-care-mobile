@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AssistantPanel from "../components/AssistantPanel.jsx";
 import FloatingAssistantButton from "../components/FloatingAssistantButton.jsx";
-import MedicationPlanFormModal from "../components/MedicationPlanFormModal.jsx";
 import SlideOverPanel, {
   SLIDE_ENTER_EASE,
   SLIDE_ENTER_MS,
@@ -14,8 +13,6 @@ import {
   isSmartAddGuideStep,
 } from "../lib/appGuide.js";
 import { dateKeyFromDate } from "../lib/dailySchedule.js";
-import { uid } from "../lib/medicine.js";
-import { applyManualPlanSave } from "../lib/smartCapture/planDuplicate.js";
 import MedicationPlanPage from "./MedicationPlanPage.jsx";
 import MonthlyBoardPage from "./MonthlyBoardPage.jsx";
 import TodayBoardPage from "./TodayBoardPage.jsx";
@@ -48,12 +45,22 @@ export default function TodayPage({
   const [view, setView] = useState("daily");
   const [selectedDateKey, setSelectedDateKey] = useState(() => dateKeyFromDate(new Date()));
   const [weekAnchorKey, setWeekAnchorKey] = useState(() => dateKeyFromDate(new Date()));
-  const [planFormOpen, setPlanFormOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [manageAddSignal, setManageAddSignal] = useState(0);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const guideSmartAddIntro = guideActive && isSmartAddGuideStep(guideStepId);
+  const guidePlanStep = guideActive && guideStepId === "plan";
   const prevGuideSmartAddIntroRef = useRef(false);
+
+  useEffect(() => {
+    if (!guidePlanStep) {
+      onGuideCaptureEvent?.({ type: "planManageClose" });
+      return;
+    }
+    onGuideCaptureEvent?.(
+      manageOpen ? { type: "planManageOpen" } : { type: "planManageClose" }
+    );
+  }, [guidePlanStep, manageOpen, onGuideCaptureEvent]);
 
   const assistantState = useMemo(
     () => ({
@@ -67,22 +74,25 @@ export default function TodayPage({
     [profile, medicines, medicationPlans, intakeRecords, journalEntries, appointments]
   );
 
-  const openAddPlan = useCallback(() => {
-    setPlanFormOpen(true);
-  }, []);
-
-  const openManage = useCallback(() => {
+  const openHeaderManage = useCallback(() => {
     setManageOpen(true);
-  }, []);
+    // 引导「用药计划」步：进入管理后直接打开新建表单
+    if (guideHighlight === "guide-add-plan") {
+      window.setTimeout(() => {
+        setManageAddSignal((value) => value + 1);
+      }, 120);
+    }
+  }, [guideHighlight]);
 
   useEffect(() => {
     if (medicines.length === 0) {
       onRegisterAddPlan?.(null);
       return undefined;
     }
-    onRegisterAddPlan?.(openManage);
+    // 右上角始终打开「管理用药计划」
+    onRegisterAddPlan?.(openHeaderManage);
     return () => onRegisterAddPlan?.(null);
-  }, [medicines.length, onRegisterAddPlan, openManage]);
+  }, [medicines.length, onRegisterAddPlan, openHeaderManage]);
 
   useEffect(() => {
     if (guideSmartAddIntro) {
@@ -92,25 +102,6 @@ export default function TodayPage({
     }
     prevGuideSmartAddIntroRef.current = guideSmartAddIntro;
   }, [guideSmartAddIntro]);
-
-  function closePlanForm() {
-    setPlanFormOpen(false);
-  }
-
-  function handlePlanSave(payload, overlapAction = null) {
-    const result = applyManualPlanSave({
-      medicationPlans,
-      payload,
-      overlapAction,
-      newPlanId: uid("plan"),
-    });
-    if (result.skipped) {
-      closePlanForm();
-      return;
-    }
-    onPlansChange(result.medicationPlans);
-    closePlanForm();
-  }
 
   function closeManage() {
     setManageOpen(false);
@@ -130,7 +121,6 @@ export default function TodayPage({
           medicines={medicines}
           medicationPlans={medicationPlans}
           intakeRecords={intakeRecords}
-          onAddPlan={openAddPlan}
         />
       );
     }
@@ -140,7 +130,6 @@ export default function TodayPage({
           medicines={medicines}
           medicationPlans={medicationPlans}
           intakeRecords={intakeRecords}
-          onAddPlan={openAddPlan}
         />
       );
     }
@@ -154,7 +143,6 @@ export default function TodayPage({
         journalEntries={journalEntries}
         onIntakeChange={onIntakeChange}
         onMedicinesChange={onMedicinesChange}
-        onAddPlan={openAddPlan}
         guideHighlight={guideHighlight}
       />
     );
@@ -241,15 +229,6 @@ export default function TodayPage({
         onAppointmentsChange={onAppointmentsChange}
       />
 
-      <MedicationPlanFormModal
-        open={planFormOpen}
-        editing={null}
-        medicines={medicines}
-        medicationPlans={medicationPlans}
-        onClose={closePlanForm}
-        onSave={handlePlanSave}
-      />
-
       <SlideOverPanel
         open={manageOpen}
         onClose={closeManage}
@@ -258,13 +237,20 @@ export default function TodayPage({
         footer={
           medicationPlans.length > 0 ? (
             <div className="px-4 pb-[calc(68px+env(safe-area-inset-bottom))] pt-2">
-              <button
-                type="button"
-                onClick={openAddInManage}
-                className="w-full rounded-xl bg-[#00c896] py-3.5 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(0,200,150,0.35)]"
+              <div
+                id={guideHighlight === "guide-add-plan" ? "guide-add-plan-create" : undefined}
+                className={
+                  guideHighlight === "guide-add-plan" ? "guide-highlight rounded-xl" : undefined
+                }
               >
-                + 新建用药计划
-              </button>
+                <button
+                  type="button"
+                  onClick={openAddInManage}
+                  className="w-full rounded-xl bg-[#00c896] py-3.5 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(0,200,150,0.35)]"
+                >
+                  + 新建用药计划
+                </button>
+              </div>
             </div>
           ) : null
         }
@@ -274,7 +260,10 @@ export default function TodayPage({
           medicines={medicines}
           medicationPlans={medicationPlans}
           onChange={onPlansChange}
+          onMedicinesChange={onMedicinesChange}
           openAddSignal={manageAddSignal}
+          guideHighlight={guidePlanStep ? guideHighlight : null}
+          onGuidePlanSaved={guidePlanStep ? closeManage : null}
         />
       </SlideOverPanel>
     </>

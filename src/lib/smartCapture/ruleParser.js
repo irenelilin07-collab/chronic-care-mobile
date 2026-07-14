@@ -3,6 +3,7 @@ import { resolveCatalogFields } from "./catalogResolver.js";
 import { buildTimeLabel, mealInfoFromText, MEAL_TIME_MAP } from "./mealTimeMap.js";
 import { isHighRiskMedicineName, resolveAliasName } from "./medicineAliases.js";
 import { MEDICINE_CATALOG } from "../medicineCatalog.js";
+import { extractLikelyMedicineName } from "./medicineName.js";
 import { isStockOnlySegment, parseStockOnlySegment } from "./stockCapture.js";
 
 const CHINESE_NUM_MAP = {
@@ -56,13 +57,19 @@ function parseChineseNumber(token) {
 }
 
 function extractDose(text) {
-  const match = text.match(
-    /(?:每次|每次服用|服用|吃|服)?\s*([一二两三四五六七八九十半\d.]+)\s*(片|粒|颗|袋|支|喷|贴|毫克|mg)?/
-  );
-  if (!match) return "";
-  const amount = parseChineseNumber(match[1]) || match[1];
-  const unit = match[2] || "片";
-  return `${amount}${unit}`;
+  // 必须带单位，避免把「9点」里的 9 误识别成剂量
+  const patterns = [
+    /(?:每次|每次服用|服用|吃|服)\s*([一二两三四五六七八九十半\d.]+)\s*(片|粒|颗|袋|支|喷|贴|毫克|mg)/i,
+    /([一二两三四五六七八九十半\d.]+)\s*(片|粒|颗|袋|支|喷|贴|毫克|mg)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (!match) continue;
+    const amount = parseChineseNumber(match[1]) || match[1];
+    const unit = match[2] || "片";
+    return `${amount}${unit}`;
+  }
+  return "";
 }
 
 function extractExplicitTimes(text) {
@@ -142,17 +149,23 @@ function extractTimes(text) {
     return { times: [...new Set(times)], mealHints };
   }
 
-  const mealMatches = [...text.matchAll(/(早饭前|早餐后|早饭后|早餐前|午饭前|午餐后|午饭后|午餐前|晚饭前|晚餐后|晚饭后|晚餐前|睡前|早上|中午|晚上)/g)];
-  for (const match of mealMatches) {
-    const info = mealInfoFromText(match[0]);
-    if (info) {
-      times.push(info.time);
-      mealHints.push(info.mealHint);
+  // 有「9点」等显式时间时优先，避免「早上」盖掉具体钟点
+  const explicit = extractExplicitTimes(text);
+  if (explicit.length > 0) {
+    times.push(...explicit);
+  } else {
+    const mealMatches = [
+      ...text.matchAll(
+        /(早饭前|早餐后|早饭后|早餐前|午饭前|午餐后|午饭后|午餐前|晚饭前|晚餐后|晚饭后|晚餐前|睡前|早上|中午|晚上)/g
+      ),
+    ];
+    for (const match of mealMatches) {
+      const info = mealInfoFromText(match[0]);
+      if (info) {
+        times.push(info.time);
+        mealHints.push(info.mealHint);
+      }
     }
-  }
-
-  if (times.length === 0) {
-    times.push(...extractExplicitTimes(text));
   }
 
   if (times.length === 0 && /每天|每日|一天一次|一日一次/.test(text)) {
@@ -173,7 +186,10 @@ function parseSegment(segment) {
     return parseStockOnlySegment(segment);
   }
 
-  const rawName = extractMedicineName(segment) || segment.replace(/每天|每日|吃|服用|一次|片|粒/g, "").trim();
+  const rawName =
+    extractMedicineName(segment) ||
+    extractLikelyMedicineName(segment) ||
+    segment.replace(/每天|每日|吃|服用|一次|片|粒/g, "").trim();
   const dose = extractDose(segment);
   const { frequency, weekdays, intervalDays } = extractFrequency(segment);
   const { times, mealHints } = extractTimes(segment);
@@ -207,7 +223,7 @@ function parseSegment(segment) {
     source: "rule",
     catalogMatch: resolved.catalogMatch,
     needsExtraConfirm: isHighRiskMedicineName(resolved.name),
-    warnings: resolved.catalogMatch ? [] : ["药名未完全匹配目录，请确认"],
+    warnings: [],
   };
 }
 
@@ -287,7 +303,7 @@ export function normalizeLlmCaptureResult(raw) {
       source: "llm",
       catalogMatch: resolved.catalogMatch,
       needsExtraConfirm: isHighRiskMedicineName(resolved.name),
-      warnings: resolved.catalogMatch ? [] : ["药名未完全匹配目录，请确认"],
+      warnings: [],
     };
   });
 

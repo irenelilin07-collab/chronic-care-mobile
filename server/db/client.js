@@ -25,7 +25,7 @@ export function getPool() {
         : { rejectUnauthorized: false },
       max: 5,
       idleTimeoutMillis: 30_000,
-      connectionTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 4_000,
     });
   }
 

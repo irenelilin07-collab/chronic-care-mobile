@@ -39,13 +39,17 @@ export function resolveDraftInventory(item, medicines) {
 
   if (existing) {
     const sameMedicine = item.existingMedicineId === existing.id;
+    // 默认追加库存，避免漏选；用户可改「仅加计划」
+    const stockAction = sameMedicine
+      ? item.stockAction || "add_stock"
+      : "add_stock";
     return {
       ...item,
       existingMedicineId: existing.id,
       inventoryMode: "existing",
-      stockAction: sameMedicine ? item.stockAction || "" : "",
+      stockAction,
       stockAmount:
-        sameMedicine && item.stockAction === "add_stock" ? item.stockAmount || "" : "",
+        sameMedicine && stockAction === "add_stock" ? item.stockAmount || "" : "",
     };
   }
 

@@ -8,14 +8,13 @@ export default function StockAmountField({
   unitPlaceholder = "如：片",
   amountType = "number",
   unitLocked = false,
+  invalid = false,
 }) {
   const inputClass =
     "w-full rounded-xl border border-[#eee] bg-[#fafafa] px-3 py-3 text-sm text-[#333] outline-none focus:border-[#00c896]";
-  const lockedClass =
-    "w-full rounded-xl border border-[#eee] bg-[#f0f0f0] px-3 py-3 text-sm text-[#999] outline-none cursor-not-allowed";
 
   return (
-    <div>
+    <div className={invalid ? "rounded-xl ring-2 ring-[#ff4d4f] p-1.5" : undefined}>
       {label ? <p className="mb-1 text-xs text-[#999]">{label}</p> : null}
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -32,13 +31,21 @@ export default function StockAmountField({
         </div>
         <div>
           <label className="mb-1 block text-xs text-[#999]">单位</label>
-          <input
-            className={unitLocked ? lockedClass : inputClass}
-            placeholder={unitPlaceholder}
-            value={unit}
-            readOnly={unitLocked}
-            onChange={unitLocked ? undefined : (e) => onUnitChange(e.target.value)}
-          />
+          {unitLocked ? (
+            <div
+              className="flex w-full items-center rounded-xl border border-[#eee] bg-[#f0f0f0] px-3 py-3 text-sm text-[#999]"
+              aria-label={`单位 ${unit}（与药箱一致）`}
+            >
+              {unit || "—"}
+            </div>
+          ) : (
+            <input
+              className={inputClass}
+              placeholder={unitPlaceholder}
+              value={unit}
+              onChange={(e) => onUnitChange(e.target.value)}
+            />
+          )}
         </div>
       </div>
     </div>

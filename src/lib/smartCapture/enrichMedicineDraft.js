@@ -1,10 +1,22 @@
+import { todaysDefaultDate } from "../medicationPlan.js";
 import { mergeMedicineDrafts } from "./mergeMedicineDrafts.js";
 import { resolveDraftInventory } from "./inventoryMatch.js";
 import { resolveDraftDuplicatePlan } from "./planDuplicate.js";
 import { updateDraftItemTimeLabel } from "./draftToPayload.js";
 
+function withPlanPeriodDefaults(item) {
+  if (item?.captureMode === "stock_only") return item;
+  return {
+    ...item,
+    startDate: item.startDate || todaysDefaultDate(),
+    endDate: item.endDate || "",
+    longTerm: typeof item.longTerm === "boolean" ? item.longTerm : true,
+  };
+}
+
 export function resolveMedicineDraft(item, medicines, medicationPlans = []) {
-  let next = resolveDraftInventory(item, medicines);
+  let next = withPlanPeriodDefaults(item);
+  next = resolveDraftInventory(next, medicines);
   next = resolveDraftDuplicatePlan(next, medicines, medicationPlans);
   next = updateDraftItemTimeLabel(next);
   return next;

@@ -25,8 +25,12 @@ export default function Modal({
           compact ? "max-h-[94vh] p-4" : "max-h-[85vh] p-5"
         } ${centered ? "rounded-2xl" : ""} ${bare ? "modal-panel-bare" : ""}`}
       >
-        <div className={`flex shrink-0 items-center justify-between ${compact ? "mb-2" : "mb-4"}`}>
-          <h3 className="form-title text-[#1a1a1a]">{title}</h3>
+        <div
+          className={`flex shrink-0 items-center ${
+            title ? "justify-between" : "justify-end"
+          } ${compact ? "mb-2" : "mb-4"}`}
+        >
+          {title ? <h3 className="form-title text-[#1a1a1a]">{title}</h3> : null}
           <button
             type="button"
             onClick={onClose}

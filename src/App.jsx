@@ -2,12 +2,19 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import AppGuidePanel from "./components/AppGuidePanel.jsx";
 import GuideHelpButton from "./components/GuideHelpButton.jsx";
 import HeaderAddButton from "./components/HeaderAddButton.jsx";
+import MessageBellButton from "./components/MessageBellButton.jsx";
+import MessagesPanel from "./components/MessagesPanel.jsx";
 import TabBar from "./components/TabBar.jsx";
 import TabContent from "./components/TabContent.jsx";
+import { useAuth } from "./context/AuthContext.jsx";
 import TodayPage from "./pages/TodayPage.jsx";
 import InventoryPage from "./pages/InventoryPage.jsx";
 import AppointmentPage from "./pages/AppointmentPage.jsx";
 import SettingsPage from "./pages/SettingsPage.jsx";
+import {
+  getTodayMessageBadge,
+  syncMedicationMessages,
+} from "./lib/appMessages.js";
 import {
   computeGuideCanAdvance,
   getGuideStep,
@@ -16,12 +23,7 @@ import {
   shouldAutoStartGuide,
 } from "./lib/appGuide.js";
 import { markOnboardingCompleted, markOnboardingSkipped } from "./lib/onboarding.js";
-import {
-  getReminderPermissionMessage,
-  scheduleMedicationReminders,
-  clearMedicationReminders,
-  tryEnableMedicationReminder,
-} from "./lib/medicationReminder.js";
+import { OVERDUE_REFRESH_MS } from "./lib/overdueCheckin.js";
 import { FONT_SIZES, TABS } from "./lib/storage.js";
 
 const TAB_TITLES = {
@@ -77,8 +79,7 @@ function renderPage(
           onProfileChange={setProfile}
           onSettingsChange={setSettings}
           onJournalChange={setJournalEntries}
-          onStartGuide={guideProps.onStartGuide}
-          {...guideProps}
+          guideHighlight={guideProps.guideHighlight}
         />
       );
     default:
@@ -103,24 +104,60 @@ function renderPage(
 }
 
 export default function App({ state, setState }) {
+  const { role } = useAuth();
   const { activeTab, fontSize } = state.ui;
   const fontClass = FONT_SIZES[fontSize]?.className || FONT_SIZES.standard.className;
   const [todayAddPlan, setTodayAddPlan] = useState(null);
   const [guideActive, setGuideActive] = useState(false);
   const [guideStepIndex, setGuideStepIndex] = useState(0);
   const [autoGuideChecked, setAutoGuideChecked] = useState(false);
-  const [reminderEnableError, setReminderEnableError] = useState(null);
   const [captureGuideProgress, setCaptureGuideProgress] = useState({
     textParsed: false,
     textPreviewSeen: false,
     voiceParsed: false,
     voicePreviewSeen: false,
   });
+  /** 用药计划引导步：管理页打开时引导条留在主页面不跟着进 */
+  const [planManageOpen, setPlanManageOpen] = useState(false);
+  const [messagesOpen, setMessagesOpen] = useState(false);
+  const [overdueTick, setOverdueTick] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setOverdueTick((value) => value + 1);
+    }, OVERDUE_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  // App 内消息：到点 / 逾期 / 过期
+  useEffect(() => {
+    const { messages, changed } = syncMedicationMessages(state);
+    if (!changed) return;
+    setState((prev) => ({ ...prev, messages }));
+    // overdueTick 驱动临界时间刷新；依赖业务字段避免无关 ui 抖动反复写
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    state.medicationPlans,
+    state.medicines,
+    state.intakeRecords,
+    state.messages,
+    overdueTick,
+  ]);
 
   const guideStep = getGuideStep(guideStepIndex);
   const guideCanAdvance = useMemo(
     () => computeGuideCanAdvance(guideStep, state, captureGuideProgress),
     [guideStep, state, captureGuideProgress]
+  );
+  const guidePanelOpen =
+    guideActive && !(guideStep?.id === "plan" && planManageOpen);
+
+  /** 用药 Tab 与铃铛共用：当天未完成次数；有待办红，全过期灰 */
+  const todayMessageBadge = useMemo(
+    () => getTodayMessageBadge(state.messages),
+    // overdueTick：跨过临界时间时同步刷新数字与颜色
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [state.messages, overdueTick]
   );
 
   function registerTodayAddPlan(handler) {
@@ -129,7 +166,16 @@ export default function App({ state, setState }) {
 
   const headerAdd =
     activeTab === TABS.today && state.medicines.length > 0 && todayAddPlan
-      ? { onClick: todayAddPlan, label: "管理用药计划", icon: "edit" }
+      ? {
+          onClick: todayAddPlan,
+          label: "管理用药计划",
+          icon: "edit",
+          highlight:
+            guideActive &&
+            guideStep?.highlight === "guide-add-plan" &&
+            !planManageOpen &&
+            !guideCanAdvance,
+        }
       : null;
 
   function setActiveTab(tab) {
@@ -198,11 +244,20 @@ export default function App({ state, setState }) {
       voiceParsed: false,
       voicePreviewSeen: false,
     });
+    setPlanManageOpen(false);
     setGuideActive(true);
   }
 
   const handleGuideCaptureEvent = useCallback((event) => {
     if (!event?.type) return;
+    if (event.type === "planManageOpen") {
+      setPlanManageOpen(true);
+      return;
+    }
+    if (event.type === "planManageClose") {
+      setPlanManageOpen(false);
+      return;
+    }
     setCaptureGuideProgress((prev) => {
       if (event.type === "textParsed") {
         return { ...prev, textParsed: true };
@@ -231,6 +286,7 @@ export default function App({ state, setState }) {
   function finishGuide() {
     setGuideActive(false);
     setGuideStepIndex(0);
+    setPlanManageOpen(false);
     setState((prev) => ({
       ...prev,
       onboarding: markOnboardingCompleted("interactive-guide"),
@@ -240,6 +296,7 @@ export default function App({ state, setState }) {
   function skipAllGuide() {
     setGuideActive(false);
     setGuideStepIndex(0);
+    setPlanManageOpen(false);
     setState((prev) => ({
       ...prev,
       onboarding: markOnboardingSkipped(),
@@ -269,29 +326,17 @@ export default function App({ state, setState }) {
     setGuideStepIndex((value) => Math.min(value + 1, getGuideStepCount() - 1));
   }
 
-  async function handleGuideEnableReminder() {
-    setReminderEnableError(null);
-    const result = await tryEnableMedicationReminder(state.settings, setSettings);
-    if (!result.ok) {
-      setReminderEnableError(getReminderPermissionMessage(result.reason, { forGuide: true }));
-    }
-  }
-
-  useEffect(() => {
-    if (guideStep?.id !== "reminder") {
-      setReminderEnableError(null);
-    }
-  }, [guideStep?.id]);
-
   useEffect(() => {
     if (autoGuideChecked) return;
+    // 等角色就绪后再判断一次，避免 admin 在 role 为空时被误开引导
+    if (role == null) return;
     setAutoGuideChecked(true);
-    if (shouldAutoStartGuide(state)) {
+    if (shouldAutoStartGuide(state, { role })) {
       startGuide(0);
     }
-    // Only evaluate auto-start once on first mount.
+    // 仅判定一次；role 就绪后执行，不随 state 反复触发
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoGuideChecked]);
+  }, [autoGuideChecked, role]);
 
   useEffect(() => {
     if (!guideActive || !guideStep?.tab) return;
@@ -299,24 +344,9 @@ export default function App({ state, setState }) {
   }, [guideActive, guideStep?.id, guideStep?.tab]);
 
   useEffect(() => {
-    const reminderState = {
-      settings: state.settings,
-      medicationPlans: state.medicationPlans,
-      medicines: state.medicines,
-      intakeRecords: state.intakeRecords,
-    };
-    scheduleMedicationReminders(reminderState);
-    function handleVisibilityChange() {
-      if (document.visibilityState === "visible") {
-        scheduleMedicationReminders(reminderState);
-      }
-    }
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      clearMedicationReminders();
-    };
-  }, [state.settings, state.medicationPlans, state.medicines, state.intakeRecords]);
+    if (guideStep?.id === "plan") return;
+    setPlanManageOpen(false);
+  }, [guideStep?.id]);
 
   const guideProps = {
     guideActive,
@@ -331,7 +361,7 @@ export default function App({ state, setState }) {
     const timer = window.setTimeout(() => {
       document.getElementById(guideStep.highlight)?.scrollIntoView({
         behavior: "smooth",
-        block: guideStep.id === "reminder" ? "start" : "center",
+        block: "center",
       });
     }, 280);
     return () => window.clearTimeout(timer);
@@ -346,12 +376,26 @@ export default function App({ state, setState }) {
             <GuideHelpButton onClick={() => startGuide(0)} active={guideActive} />
             <h1 className="truncate text-[22px] font-bold text-[#1a1a1a]">{TAB_TITLES[activeTab]}</h1>
           </div>
-          {headerAdd ? (
-            <HeaderAddButton
-              onClick={headerAdd.onClick}
-              label={headerAdd.label}
-              icon={headerAdd.icon}
-            />
+          {activeTab === TABS.today ? (
+            <div className="flex shrink-0 items-center gap-2">
+              <MessageBellButton
+                unreadCount={todayMessageBadge.count}
+                badgeTone={todayMessageBadge.tone}
+                onClick={() => setMessagesOpen(true)}
+              />
+              {headerAdd ? (
+                <div
+                  id={headerAdd.highlight ? "guide-add-plan" : undefined}
+                  className={headerAdd.highlight ? "guide-highlight rounded-full" : undefined}
+                >
+                  <HeaderAddButton
+                    onClick={headerAdd.onClick}
+                    label={headerAdd.label}
+                    icon={headerAdd.icon}
+                  />
+                </div>
+              ) : null}
+            </div>
           ) : null}
         </div>
       </header>
@@ -384,10 +428,21 @@ export default function App({ state, setState }) {
         </TabContent>
       </main>
 
-      <TabBar activeTab={activeTab} onChange={setActiveTab} />
+      <TabBar
+        activeTab={activeTab}
+        onChange={setActiveTab}
+        todayBadgeCount={todayMessageBadge.count}
+        todayBadgeTone={todayMessageBadge.tone}
+      />
+
+      <MessagesPanel
+        open={messagesOpen}
+        onClose={() => setMessagesOpen(false)}
+        messages={state.messages || []}
+      />
 
       <AppGuidePanel
-        open={guideActive}
+        open={guidePanelOpen}
         step={guideStep}
         canAdvance={guideCanAdvance}
         canGoBack={guideStepIndex > 0}
@@ -395,8 +450,6 @@ export default function App({ state, setState }) {
         onPrev={goPrevGuideStep}
         onSkipStep={skipOptionalGuideStep}
         onSkipAll={skipAllGuide}
-        onEnableReminder={handleGuideEnableReminder}
-        reminderEnableError={reminderEnableError}
         captureGuideProgress={captureGuideProgress}
       />
     </div>

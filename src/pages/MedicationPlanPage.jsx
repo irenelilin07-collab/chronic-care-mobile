@@ -41,8 +41,11 @@ export default function MedicationPlanPage({
   medicines,
   medicationPlans,
   onChange,
+  onMedicinesChange,
   openAddSignal = 0,
   embedded = false,
+  guideHighlight = null,
+  onGuidePlanSaved = null,
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -84,8 +87,25 @@ export default function MedicationPlanPage({
       closeModal();
       return;
     }
+    if (payload.medicineId && payload.dose && onMedicinesChange) {
+      onMedicinesChange((prev) =>
+        prev.map((medicine) =>
+          medicine.id === payload.medicineId
+            ? {
+                ...medicine,
+                dose: payload.dose,
+                ...(payload.specUnit ? { specUnit: payload.specUnit } : {}),
+              }
+            : medicine
+        )
+      );
+    }
     onChange(result.medicationPlans);
     closeModal();
+    // 引导步：保存成功后回到主页面，由引导检测任务并自动下一步
+    if (!editing && guideHighlight === "guide-add-plan") {
+      onGuidePlanSaved?.();
+    }
   }
 
   function confirmDelete() {
@@ -133,6 +153,7 @@ export default function MedicationPlanPage({
         medicationPlans={medicationPlans}
         onClose={closeModal}
         onSave={handleSave}
+        guideHighlightSave={guideHighlight === "guide-add-plan"}
       />
 
       <ConfirmDialog

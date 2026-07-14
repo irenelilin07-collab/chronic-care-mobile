@@ -1,4 +1,4 @@
-import { formatSpec } from "./medicine.js";
+import { formatDose, formatSpec } from "./medicine.js";
 
 export const WEEKDAYS = [
   { value: 1, label: "一" },
@@ -56,10 +56,15 @@ export function planMedicineMeta(plan, medicines = []) {
 }
 
 export function normalizePlanPayload(form, medicines = [], existingPlan = null) {
+  const dose = formatDose(form.doseAmount, form.doseUnit);
+  const specUnit = String(form.doseUnit || "").trim();
+
   if (existingPlan) {
     return {
       medicineId: existingPlan.medicineId ?? null,
       medicineName: existingPlan.medicineName || planMedicineLabel(existingPlan, medicines),
+      dose,
+      specUnit,
       ruleType: form.ruleType,
       times: [...new Set(form.times)].sort(),
       weekdays: form.ruleType === "weekly" ? [...form.weekdays].sort((a, b) => a - b) : [],
@@ -74,6 +79,8 @@ export function normalizePlanPayload(form, medicines = [], existingPlan = null) 
   return {
     medicineId: form.medicineId,
     medicineName: linked?.name || "",
+    dose,
+    specUnit,
     ruleType: form.ruleType,
     times: [...new Set(form.times)].sort(),
     weekdays: form.ruleType === "weekly" ? [...form.weekdays].sort((a, b) => a - b) : [],
@@ -92,6 +99,7 @@ export function validatePlanForm(form, medicines = [], existingPlan = null) {
       return "请选择药箱中的药品";
     }
   }
+  if (!String(form.doseAmount || "").trim()) return "请填写单次剂量";
   if (!form.times.length) return "请至少添加一个服药时间";
   if (form.ruleType === "weekly" && !form.weekdays.length) {
     return "请选择每周服药日期";

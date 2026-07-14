@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import ConfirmDialog from "./ConfirmDialog.jsx";
-import { TIME_PRESETS } from "../lib/medicationPlan.js";
-import { searchMedicineNames } from "../lib/medicineCatalog.js";
-import { formatDose, parseDose, unitFromDose } from "../lib/medicine.js";
-import { matchMedicineFromCatalog } from "../lib/smartCapture/catalogResolver.js";
+import CustomTimeAddChip from "./CustomTimeAddChip.jsx";
+import PlanPeriodEndField from "./PlanPeriodEndField.jsx";
+import StockAmountField from "./StockAmountField.jsx";
+import {
+  RULE_TYPES,
+  TIME_PRESETS,
+  WEEKDAYS,
+  todaysDefaultDate,
+} from "../lib/medicationPlan.js";
+import { formatDose, parseDose, stockUnitOf, unitFromDose } from "../lib/medicine.js";
 import {
   applyCaptureDraft,
   getAppointmentDraftIssue,
@@ -31,9 +37,8 @@ import {
   isVoiceInputSupported,
 } from "../lib/voiceInput.js";
 
-const DOSE_AMOUNT_PRESETS = ["1", "2", "0.5", "1.5"];
+const DOSE_AMOUNT_PRESETS = ["1", "2", "0.5", "1.5", "3"];
 const UNIT_PRESETS = ["片", "粒", "颗", "袋", "支"];
-const STOCK_AMOUNT_PRESETS = ["30", "60", "90"];
 
 function getAssistantScrollRoot() {
   return document.querySelector("[data-assistant-scroll]");
@@ -73,75 +78,19 @@ function scrollPreviewIntoAssistantPanel(behavior = "auto") {
   return true;
 }
 
-const CAPTURE_INPUT_EXAMPLES = [
-  {
-    badge: "用药",
-    badgeTone: "brand",
-    example: "每天早饭后吃一片氨氯地平",
-  },
-  {
-    badge: "库存",
-    badgeTone: "brand",
-    example: "氨氯地平库存加100片",
-  },
-  {
-    badge: "复诊",
-    badgeTone: "blue",
-    example: "6月15号去市第一医院复查高血压",
-  },
-];
-
-/** 确认卡统一字号：标题 15px / 正文与控件 13px / 辅助说明 13px 灰色 */
-const captureTitleClass = "text-[15px] font-semibold leading-snug text-[#1a1a1a]";
-const captureLabelClass = "mb-1.5 text-[13px] font-medium text-[#999]";
-const captureHintClass = "mt-1.5 text-[13px] leading-5 text-[#999]";
+/** 确认卡对齐手动表单：form-title / form-body + 分区分隔 */
+const captureTitleClass = "form-title text-[#1a1a1a]";
 const captureInputClass =
-  "w-full rounded-lg border border-[#eee] bg-white px-3 py-2 text-[13px] text-[#333] outline-none transition-colors focus:border-[#00c896]";
+  "form-body w-full rounded-xl border border-[#eee] bg-[#fafafa] px-3 py-3 text-[#333] outline-none transition-colors focus:border-[#00c896]";
 
-const fieldInvalidWrapClass = "rounded-lg ring-2 ring-[#ff4d4f]";
+const fieldInvalidWrapClass = "rounded-xl ring-2 ring-[#ff4d4f]";
 const fieldInvalidInputClass = "border-[#ff4d4f] focus:border-[#ff4d4f]";
 
 const inputClass = captureInputClass;
-const captureGuideTextClass = "text-[13px] leading-5";
 
-function CaptureInputGuide() {
+function SectionTitle({ children, warn = false }) {
   return (
-    <div className="app-card px-3.5 py-3">
-      <p className={`${captureGuideTextClass} font-semibold text-[#333]`}>
-        粘贴医嘱，或按住下方按钮说话
-      </p>
-      <p className={`${captureGuideTextClass} mt-1 text-[#999]`}>支持一次识别多项内容</p>
-      <ul className="mt-3 space-y-2">
-        {CAPTURE_INPUT_EXAMPLES.map((item) => {
-          const badgeClass =
-            item.badgeTone === "blue"
-              ? "bg-[#eef4ff] text-[#4a7fc1]"
-              : "bg-[#e8faf4] text-[#00a87a]";
-
-          return (
-            <li
-              key={item.badge}
-              className="flex items-center gap-2 rounded-lg bg-[#f5f6f8] px-2.5 py-2"
-            >
-              <span
-                className={`shrink-0 rounded px-1.5 py-0.5 text-[13px] font-medium ${badgeClass}`}
-              >
-                {item.badge}
-              </span>
-              <p className={`min-w-0 flex-1 ${captureGuideTextClass} text-[#666]`}>
-                {item.example}
-              </p>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
-
-function SectionLabel({ children, warn = false }) {
-  return (
-    <p className={`${captureLabelClass} flex items-center gap-1`}>
+    <p className="form-title mb-2 flex items-center gap-1.5 text-[#1a1a1a]">
       {children}
       {warn ? (
         <span
@@ -155,16 +104,45 @@ function SectionLabel({ children, warn = false }) {
   );
 }
 
+function FieldSubtitle({ children, className = "" }) {
+  return (
+    <p className={`form-subtitle mb-1.5 text-[#999] ${className}`.trim()}>{children}</p>
+  );
+}
+
+function FormSection({ title, warn = false, bordered = false, children }) {
+  return (
+    <div className={bordered ? "border-t border-[#f0f0f0] pt-3" : ""}>
+      {title ? <SectionTitle warn={warn}>{title}</SectionTitle> : null}
+      {children}
+    </div>
+  );
+}
+
 function ChipButton({ active, onClick, children, className = "" }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`min-h-[30px] rounded-lg px-2.5 text-[13px] font-medium transition-colors ${
+      className={`form-body min-h-[36px] rounded-xl px-3 font-medium transition-colors ${
         active
           ? "bg-[#00c896] text-white"
           : "bg-[#f5f6f8] text-[#666] active:bg-[#eee]"
       } ${className}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function TimeChip({ active, onClick, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`form-body shrink-0 rounded-xl px-2.5 py-1.5 ${
+        active ? "bg-[#00c896] text-white" : "bg-[#f5f6f8] text-[#666]"
+      }`}
     >
       {children}
     </button>
@@ -176,8 +154,8 @@ function SegmentedOption({ active, onClick, children }) {
     <button
       type="button"
       onClick={onClick}
-      className={`flex-1 rounded-lg py-2 text-[13px] font-medium transition-colors ${
-        active ? "bg-white text-[#00a87a] shadow-sm" : "text-[#666]"
+      className={`form-body flex-1 rounded-lg py-2 font-medium transition-colors ${
+        active ? "bg-[#00c896] text-white" : "text-[#666]"
       }`}
     >
       {children}
@@ -199,10 +177,10 @@ function CaptureCard({
       : "bg-[#e8faf4] text-[#00a87a]";
 
   return (
-    <div className="app-card overflow-hidden">
-      <div className="flex items-center gap-2 border-b border-[#f0f0f0] px-3.5 py-2.5">
+    <div className="app-card overflow-hidden px-4 py-4">
+      <div className="mb-3 flex items-start gap-2.5">
         <span
-          className={`shrink-0 rounded px-1.5 py-0.5 text-[13px] font-medium ${badgeClass}`}
+          className={`mt-0.5 shrink-0 rounded-md px-2 py-0.5 text-[12px] font-semibold ${badgeClass}`}
         >
           {badge}
         </span>
@@ -211,32 +189,32 @@ function CaptureCard({
           <button
             type="button"
             onClick={onRemove}
-            className="shrink-0 text-[13px] text-[#bbb] active:text-[#999]"
+            className="form-body-muted shrink-0 pt-0.5 active:text-[#666]"
           >
             删除
           </button>
         ) : null}
       </div>
-      <div className="space-y-3 px-3.5 py-3">{children}</div>
+      <div className="space-y-0">{children}</div>
     </div>
   );
 }
 
 function CaptureConfirmFooter({ onReinput, onConfirm, embedded = false }) {
   const buttons = (
-    <div className="grid grid-cols-2 gap-2">
+    <div className="grid grid-cols-2 gap-3">
       <button
         type="button"
         onClick={onReinput}
-        className="rounded-lg bg-white py-2.5 text-[13px] font-medium text-[#666] shadow-sm"
+        className="form-body rounded-xl bg-[#f5f6f8] py-3.5 font-medium text-[#666]"
       >
-        重新输入
+        清空结果
       </button>
       <button
         type="button"
         id="guide-capture-confirm"
         onClick={onConfirm}
-        className="rounded-lg bg-[#00c896] py-2.5 text-[13px] font-semibold text-white"
+        className="form-body rounded-xl bg-[#00c896] py-3.5 font-semibold text-white"
       >
         确认添加
       </button>
@@ -254,74 +232,30 @@ function CaptureConfirmFooter({ onReinput, onConfirm, embedded = false }) {
   );
 }
 
-function FieldBlock({ label, hint, invalid = false, warn = false, children }) {
-  return (
-    <div>
-      <SectionLabel warn={warn}>{label}</SectionLabel>
-      <div className={invalid ? fieldInvalidWrapClass : undefined}>{children}</div>
-      {hint ? <p className={captureHintClass}>{hint}</p> : null}
-    </div>
-  );
-}
-
-function InventoryStatusBanner({ children }) {
-  return (
-    <p className="rounded-lg bg-[#f5f6f8] px-3 py-2 text-[13px] leading-5 text-[#666]">
-      {children}
-    </p>
-  );
-}
-
-function StockAmountRow({
-  value,
-  unit,
-  onChange,
-  presets = STOCK_AMOUNT_PRESETS,
-  invalid = false,
-}) {
-  return (
-    <div
-      className={`flex flex-wrap items-center gap-2 ${
-        invalid ? `${fieldInvalidWrapClass} p-1.5` : ""
-      }`}
-    >
-      <input
-        className={`${captureInputClass} max-w-[88px] text-center`}
-        type="number"
-        min="1"
-        inputMode="numeric"
-        value={value || ""}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="数量"
-      />
-      <span className="text-[13px] text-[#999]">{unit}</span>
-      <div className="flex flex-wrap gap-1.5">
-        {presets.map((amount) => (
-          <ChipButton
-            key={amount}
-            active={value === amount}
-            onClick={() => onChange(amount)}
-          >
-            {amount}
-          </ChipButton>
-        ))}
-      </div>
-    </div>
-  );
+function FieldHint({ children }) {
+  return <p className="form-body-muted mb-2">{children}</p>;
 }
 
 function getDoseParts(item) {
   const parsed = parseDose(item.dose);
   return {
-    amount: parsed.doseAmount || "1",
-    unit: parsed.doseUnit || item.specUnit || unitFromDose(item.dose) || "片",
+    amount: parsed.doseAmount || "",
+    // 允许清空以便自定义；不强制回退成「片」
+    unit: parsed.doseUnit || item.specUnit || unitFromDose(item.dose) || "",
   };
 }
 
-function getAllTimeOptions(item) {
-  const selected = item.times || [];
-  const extras = selected.filter((time) => !TIME_PRESETS.includes(time));
-  return [...TIME_PRESETS, ...extras];
+function IconEditPen({ className = "h-4 w-4" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M15.2 4.8a1.8 1.8 0 0 1 2.5 2.5L8.5 16.5 5 17.5l1-3.5L15.2 4.8Z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }
 
 function DraftItemCard({
@@ -334,14 +268,22 @@ function DraftItemCard({
   showValidation,
 }) {
   const [nameQuery, setNameQuery] = useState(item.name);
-  const customTimeRef = useRef(null);
-  const suggestions = searchMedicineNames(nameQuery);
+  const [newTime, setNewTime] = useState("");
+  const nameInputRef = useRef(null);
   const doseParts = getDoseParts(item);
-  const timeOptions = getAllTimeOptions(item);
+  const customTimes = (item.times || []).filter((time) => !TIME_PRESETS.includes(time));
   const existingMedicine = findMedicineInInventory(medicines, item);
   const overlapSummary = getDraftPlanOverlapSummary(item, medicines, medicationPlans);
-  const stockUnit = doseParts.unit || item.specUnit || "片";
+  const stockUnitLocked = Boolean(existingMedicine);
+  // 新药单位可自由输入；用 ?? 避免清空时又回退成「片」
+  const stockUnit = stockUnitLocked
+    ? stockUnitOf(existingMedicine)
+    : item.specUnit ?? doseParts.unit ?? "片";
+  const frequency = item.frequency || "daily";
   const fieldIssues = showValidation ? getMedicineDraftFieldIssues(item) : null;
+  const visibleWarnings = (item.warnings || []).filter(
+    (warning) => !String(warning).includes("目录")
+  );
 
   useEffect(() => {
     setNameQuery(item.name);
@@ -351,52 +293,69 @@ function DraftItemCard({
     onChange(resolveMedicineDraft({ ...item, ...patch }, medicines, medicationPlans));
   }
 
-  function applyCatalogMatch(name) {
-    const matched = matchMedicineFromCatalog(name);
-    const parts = parseDose(matched.dose || item.dose);
-    update({
-      name: matched.name,
-      rawName: name,
-      specAmount: matched.specAmount || item.specAmount,
-      specUnit: matched.specUnit || item.specUnit,
-      spec: matched.spec || item.spec,
-      dose: matched.dose || item.dose,
-      catalogMatch: matched.catalogMatch,
-      warnings: matched.catalogMatch ? [] : item.warnings,
-    });
-    if (!parts.doseAmount && matched.dose) {
-      // dose already set via matched.dose
-    }
-  }
-
   function updateDose(amount, unit = doseParts.unit) {
-    const nextUnit = unit || doseParts.unit || "片";
+    const nextUnit = String(unit ?? doseParts.unit ?? "").trim();
     update({
       dose: formatDose(amount, nextUnit),
       specUnit: nextUnit,
     });
   }
 
-  function toggleTime(time) {
+  function updateStockUnit(unit) {
+    const nextUnit = String(unit ?? "");
+    const patch = { specUnit: nextUnit };
+    if (doseParts.amount) {
+      patch.dose = formatDose(doseParts.amount, nextUnit.trim());
+    }
+    update(patch);
+  }
+
+  function setFrequency(nextFrequency) {
+    update({
+      frequency: nextFrequency,
+      weekdays: nextFrequency === "weekly" ? item.weekdays || [] : [],
+      intervalDays:
+        nextFrequency === "interval"
+          ? Math.max(2, Number(item.intervalDays) || 2)
+          : item.intervalDays || 1,
+    });
+  }
+
+  function toggleWeekday(day) {
+    const current = item.weekdays || [];
+    const exists = current.includes(day);
+    update({
+      weekdays: exists
+        ? current.filter((entry) => entry !== day)
+        : [...current, day],
+    });
+  }
+
+  function togglePresetTime(time) {
     const current = item.times || [];
     const next = current.includes(time)
       ? current.filter((entry) => entry !== time)
       : [...current, time];
-    if (next.length === 0) return;
     update({
       times: [...next].sort(),
       mealHints: [],
     });
   }
 
-  function addCustomTime(rawValue) {
-    if (!rawValue) return;
-    const [hour, minute] = rawValue.split(":");
-    const time = `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
+  function addCustomTime() {
+    if (!newTime) return;
     const current = item.times || [];
-    if (current.includes(time)) return;
+    if (current.includes(newTime)) return;
     update({
-      times: [...current, time].sort(),
+      times: [...current, newTime].sort(),
+      mealHints: [],
+    });
+    setNewTime("");
+  }
+
+  function removeTime(time) {
+    update({
+      times: (item.times || []).filter((entry) => entry !== time),
       mealHints: [],
     });
   }
@@ -409,177 +368,277 @@ function DraftItemCard({
         onRemove={onRemove}
         title={
           <>
-            <input
-              className={`${captureTitleClass} w-full border-0 bg-transparent p-0 outline-none placeholder:text-[#ccc]`}
-              value={nameQuery}
-              onChange={(e) => {
-                setNameQuery(e.target.value);
-                update({ name: e.target.value, rawName: e.target.value });
-              }}
-              onBlur={() => {
-                if (nameQuery.trim()) applyCatalogMatch(nameQuery.trim());
-              }}
-              placeholder="药品名称"
-            />
-            {suggestions.length > 0 && nameQuery && nameQuery !== suggestions[0] ? (
-              <div className="mt-1.5 flex flex-wrap gap-1">
-                {suggestions.slice(0, 4).map((name) => (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() => {
-                      setNameQuery(name);
-                      applyCatalogMatch(name);
-                    }}
-                    className="rounded-md bg-[#f5f6f8] px-2 py-0.5 text-[13px] text-[#00a87a]"
-                  >
-                    {name}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-            {item.warnings?.length ? (
-              <p className="mt-1 text-[13px] leading-5 text-[#e67e22]">
-                {item.warnings.join("；")}
-              </p>
+            <div className="inline-flex max-w-full items-center gap-0.5">
+              <input
+                ref={nameInputRef}
+                size={1}
+                className={`${captureTitleClass} max-w-full min-w-0 border-0 bg-transparent p-0 outline-none placeholder:text-[#ccc]`}
+                style={{
+                  width: `${Math.max([...(nameQuery || "药品名称")].length, 2) + 0.2}em`,
+                }}
+                value={nameQuery}
+                onChange={(e) => {
+                  setNameQuery(e.target.value);
+                  update({
+                    name: e.target.value,
+                    rawName: e.target.value,
+                    catalogMatch: true,
+                    warnings: [],
+                  });
+                }}
+                placeholder="药品名称"
+              />
+              <button
+                type="button"
+                className="shrink-0 text-[#c4c8ce] active:text-[#999]"
+                aria-label="编辑药名"
+                onClick={() => nameInputRef.current?.focus?.()}
+              >
+                <IconEditPen />
+              </button>
+            </div>
+            {visibleWarnings.length ? (
+              <p className="form-body mt-1.5 text-[#e67e22]">{visibleWarnings.join("；")}</p>
             ) : null}
           </>
         }
       >
         {item.captureMode === "stock_only" ? (
-          <>
-            <InventoryStatusBanner>
-              {getStockOnlyInventoryHint(existingMedicine)}
-            </InventoryStatusBanner>
-            <FieldBlock
-              label={existingMedicine ? "追加数量" : "药箱数量"}
-              warn={fieldIssues?.stockAmount}
-            >
-              <StockAmountRow
-                value={item.stockAmount}
-                unit={stockUnit}
-                onChange={(value) => update({ stockAmount: value })}
-                invalid={fieldIssues?.stockAmount}
-              />
-            </FieldBlock>
-          </>
+          <FormSection
+            title={existingMedicine ? "追加库存" : "药箱数量"}
+            warn={fieldIssues?.stockAmount || fieldIssues?.stockUnit}
+          >
+            <FieldHint>{getStockOnlyInventoryHint(existingMedicine)}</FieldHint>
+            <StockAmountField
+              amount={item.stockAmount}
+              unit={stockUnit}
+              onAmountChange={(value) => update({ stockAmount: value })}
+              onUnitChange={updateStockUnit}
+              unitLocked={stockUnitLocked}
+              invalid={fieldIssues?.stockAmount || fieldIssues?.stockUnit}
+              amountPlaceholder="如：60"
+              unitPlaceholder="如：片"
+            />
+          </FormSection>
         ) : (
           <>
-            <InventoryStatusBanner>
-              {getPlanInventoryStatusHint(item, existingMedicine)}
-            </InventoryStatusBanner>
+            <FormSection
+              title="药箱"
+              warn={
+                fieldIssues?.stockAction ||
+                fieldIssues?.stockAmount ||
+                fieldIssues?.stockUnit
+              }
+            >
+              <FieldHint>{getPlanInventoryStatusHint(item, existingMedicine)}</FieldHint>
 
-            {item.inventoryMode === "existing" && existingMedicine ? (
-              <FieldBlock
-                label="药箱"
-                warn={fieldIssues?.stockAction || fieldIssues?.stockAmount}
-              >
-                <div
-                  className={`mb-2 flex rounded-lg border border-[#eee] bg-[#f5f6f8] p-0.5 ${
-                    fieldIssues?.stockAction ? fieldInvalidWrapClass : ""
-                  }`}
-                >
-                  <SegmentedOption
-                    active={item.stockAction === "add_stock"}
-                    onClick={() => update({ stockAction: "add_stock" })}
+              {item.inventoryMode === "existing" && existingMedicine ? (
+                <>
+                  <div
+                    className={`rounded-xl border border-[#eee] bg-[#fafafa] p-1 ${
+                      fieldIssues?.stockAction ? fieldInvalidWrapClass : ""
+                    }`}
                   >
-                    追加库存
-                  </SegmentedOption>
-                  <SegmentedOption
-                    active={item.stockAction === "plan_only"}
-                    onClick={() => update({ stockAction: "plan_only", stockAmount: "" })}
-                  >
-                    仅加计划
-                  </SegmentedOption>
-                </div>
-                {item.stockAction === "add_stock" ? (
-                  <StockAmountRow
-                    value={item.stockAmount}
-                    unit={stockUnit}
-                    onChange={(value) => update({ stockAmount: value })}
-                    invalid={fieldIssues?.stockAmount}
-                  />
-                ) : null}
-              </FieldBlock>
-            ) : (
-              <FieldBlock label="药箱数量" warn={fieldIssues?.stockAmount}>
-                <StockAmountRow
-                  value={item.stockAmount}
+                    <div className="grid grid-cols-2 gap-1">
+                      <SegmentedOption
+                        active={item.stockAction === "add_stock"}
+                        onClick={() => update({ stockAction: "add_stock" })}
+                      >
+                        追加库存
+                      </SegmentedOption>
+                      <SegmentedOption
+                        active={item.stockAction === "plan_only"}
+                        onClick={() =>
+                          update({ stockAction: "plan_only", stockAmount: "" })
+                        }
+                      >
+                        仅加计划
+                      </SegmentedOption>
+                    </div>
+                  </div>
+                  {item.stockAction === "add_stock" ? (
+                    <div className="mt-3">
+                      <StockAmountField
+                        amount={item.stockAmount}
+                        unit={stockUnit}
+                        onAmountChange={(value) => update({ stockAmount: value })}
+                        onUnitChange={updateStockUnit}
+                        unitLocked
+                        invalid={fieldIssues?.stockAmount}
+                        amountPlaceholder="如：30"
+                        unitPlaceholder="如：片"
+                      />
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <StockAmountField
+                  amount={item.stockAmount}
                   unit={stockUnit}
-                  onChange={(value) => update({ stockAmount: value })}
-                  invalid={fieldIssues?.stockAmount}
+                  onAmountChange={(value) => update({ stockAmount: value })}
+                  onUnitChange={updateStockUnit}
+                  invalid={fieldIssues?.stockAmount || fieldIssues?.stockUnit}
+                  amountPlaceholder="如：60"
+                  unitPlaceholder="如：片"
                 />
-              </FieldBlock>
-            )}
+              )}
+            </FormSection>
 
-            <FieldBlock label="单次剂量" invalid={fieldIssues?.dose}>
-              <div className="flex flex-wrap items-center gap-1.5">
-                {DOSE_AMOUNT_PRESETS.map((amount) => {
-                  const active = doseParts.amount === amount;
-                  return (
-                    <ChipButton
-                      key={amount}
-                      active={active}
-                      onClick={() => updateDose(amount, doseParts.unit)}
-                    >
-                      {amount}
-                    </ChipButton>
-                  );
-                })}
-                <span className="text-[13px] text-[#ccc]">|</span>
+            <FormSection
+              title="服药安排"
+              bordered
+              warn={fieldIssues?.dose || fieldIssues?.times || fieldIssues?.planPeriod}
+            >
+              <FieldSubtitle>单次剂量</FieldSubtitle>
+              <div
+                className={`flex flex-wrap items-center gap-2 ${
+                  fieldIssues?.dose ? `${fieldInvalidWrapClass} p-1.5` : ""
+                }`}
+              >
+                {DOSE_AMOUNT_PRESETS.map((amount) => (
+                  <ChipButton
+                    key={amount}
+                    active={doseParts.amount === amount}
+                    onClick={() => updateDose(amount, doseParts.unit)}
+                  >
+                    {amount}
+                  </ChipButton>
+                ))}
                 <input
-                  className="w-11 rounded-lg border border-[#eee] bg-white px-1.5 py-1.5 text-center text-[13px] text-[#333] outline-none focus:border-[#00c896]"
-                  value={doseParts.amount}
+                  className="form-body min-h-[36px] w-[4.5rem] rounded-xl border border-[#eee] bg-[#fafafa] px-2 text-center text-[#333] outline-none placeholder:text-[#c4c8ce] focus:border-[#00c896]"
+                  value={
+                    DOSE_AMOUNT_PRESETS.includes(doseParts.amount) ? "" : doseParts.amount
+                  }
                   onChange={(e) => updateDose(e.target.value, doseParts.unit)}
-                  placeholder="1"
+                  placeholder="自定义"
+                  inputMode="decimal"
                 />
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 {UNIT_PRESETS.map((unit) => (
                   <ChipButton
                     key={unit}
                     active={doseParts.unit === unit}
                     onClick={() => updateDose(doseParts.amount, unit)}
-                    className="min-w-[30px] px-2"
+                    className="min-w-[40px]"
                   >
                     {unit}
                   </ChipButton>
                 ))}
-              </div>
-            </FieldBlock>
-
-            <FieldBlock label="服药时间" invalid={fieldIssues?.times}>
-              <div className="flex flex-wrap gap-1.5">
-                {timeOptions.map((time) => (
-                  <ChipButton
-                    key={time}
-                    active={item.times?.includes(time)}
-                    onClick={() => toggleTime(time)}
-                  >
-                    {time}
-                  </ChipButton>
-                ))}
-                <button
-                  type="button"
-                  onClick={() =>
-                    customTimeRef.current?.showPicker?.() || customTimeRef.current?.click()
-                  }
-                  className="min-h-[30px] rounded-lg border border-dashed border-[#ddd] px-2.5 text-[13px] text-[#999]"
-                >
-                  + 自定义
-                </button>
                 <input
-                  ref={customTimeRef}
-                  type="time"
-                  className="sr-only"
-                  onChange={(e) => addCustomTime(e.target.value)}
+                  className="form-body min-h-[36px] w-[4.5rem] rounded-xl border border-[#eee] bg-[#fafafa] px-2 text-center text-[#333] outline-none placeholder:text-[#c4c8ce] focus:border-[#00c896]"
+                  value={UNIT_PRESETS.includes(doseParts.unit) ? "" : doseParts.unit}
+                  onChange={(e) => updateDose(doseParts.amount, e.target.value)}
+                  placeholder="自定义"
                 />
               </div>
-            </FieldBlock>
 
-            {overlapSummary ? (
-              <p className="rounded-lg bg-[#fff7e6] px-3 py-2 text-[13px] leading-5 text-[#e67e22]">
-                {formatPlanOverlapWarning(overlapSummary)}
-              </p>
-            ) : null}
+              <FieldSubtitle className="mt-3">频率</FieldSubtitle>
+              <div className="grid grid-cols-3 gap-1 rounded-xl bg-[#f5f6f8] p-1">
+                {RULE_TYPES.map((rule) => (
+                  <button
+                    key={rule.key}
+                    type="button"
+                    onClick={() => setFrequency(rule.key)}
+                    className={`form-body rounded-xl py-1.5 ${
+                      frequency === rule.key ? "bg-[#00c896] text-white" : "text-[#666]"
+                    }`}
+                  >
+                    {rule.label}
+                  </button>
+                ))}
+              </div>
+
+              {frequency === "weekly" ? (
+                <div className="mt-2 grid grid-cols-7 gap-1.5">
+                  {WEEKDAYS.map((day) => {
+                    const active = (item.weekdays || []).includes(day.value);
+                    return (
+                      <button
+                        key={day.value}
+                        type="button"
+                        onClick={() => toggleWeekday(day.value)}
+                        className={`form-body mx-auto flex h-9 w-9 items-center justify-center rounded-xl ${
+                          active ? "bg-[#00c896] text-white" : "bg-[#f5f6f8] text-[#666]"
+                        }`}
+                      >
+                        {day.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              {frequency === "interval" ? (
+                <div className="mt-2 flex h-10 items-center justify-center rounded-xl bg-[#f5f6f8]">
+                  <span className="form-body-muted inline-flex items-center gap-1.5">
+                    <span>每</span>
+                    <span className="inline-flex h-8 w-9 items-center justify-center rounded-xl bg-white ring-1 ring-[#e2e5ea]">
+                      <input
+                        className="form-body w-full appearance-none bg-transparent text-center font-medium text-[#00a87a] outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        type="number"
+                        min="2"
+                        value={item.intervalDays || 2}
+                        onChange={(e) =>
+                          update({
+                            intervalDays: Math.max(2, Number(e.target.value) || 2),
+                          })
+                        }
+                        aria-label="间隔天数"
+                      />
+                    </span>
+                    <span>天一次</span>
+                  </span>
+                </div>
+              ) : null}
+
+              <FieldSubtitle className="mt-3">服药时间</FieldSubtitle>
+              <div
+                className={`flex items-center gap-2 ${
+                  fieldIssues?.times ? `${fieldInvalidWrapClass} p-1.5` : ""
+                }`}
+              >
+                <div className="time-chip-row flex min-w-0 flex-1 items-center gap-2">
+                  {TIME_PRESETS.map((time) => (
+                    <TimeChip
+                      key={time}
+                      active={(item.times || []).includes(time)}
+                      onClick={() => togglePresetTime(time)}
+                    >
+                      {time}
+                    </TimeChip>
+                  ))}
+                  {customTimes.map((time) => (
+                    <TimeChip key={time} active onClick={() => removeTime(time)}>
+                      {time}
+                    </TimeChip>
+                  ))}
+                </div>
+                <CustomTimeAddChip
+                  value={newTime}
+                  onChange={setNewTime}
+                  onAdd={addCustomTime}
+                />
+              </div>
+
+              <FieldSubtitle className="mt-3">服药周期</FieldSubtitle>
+              <div className={fieldIssues?.planPeriod ? fieldInvalidWrapClass : undefined}>
+                <PlanPeriodEndField
+                  startDate={item.startDate || todaysDefaultDate()}
+                  longTerm={Boolean(item.longTerm)}
+                  endDate={item.endDate || ""}
+                  minDate={item.startDate || todaysDefaultDate()}
+                  onStartDateChange={(value) => update({ startDate: value })}
+                  onChange={(patch) => update(patch)}
+                />
+              </div>
+
+              {overlapSummary ? (
+                <p className="form-body mt-3 rounded-xl bg-[#fff7e6] px-3 py-2.5 leading-5 text-[#e67e22]">
+                  {formatPlanOverlapWarning(overlapSummary)}
+                </p>
+              ) : null}
+            </FormSection>
           </>
         )}
       </CaptureCard>
@@ -600,51 +659,51 @@ function AppointmentDraftCard({ item, onChange, onRemove, canRemove, showValidat
         badgeTone="blue"
         canRemove={canRemove}
         onRemove={onRemove}
-        title={
-          <p className={captureTitleClass}>{item.disease || "复诊计划"}</p>
-        }
+        title={<p className={captureTitleClass}>{item.disease || "复诊计划"}</p>}
       >
-        <FieldBlock label="目标疾病">
+        <FormSection title="复诊信息" warn={fieldIssues?.disease || fieldIssues?.date}>
+          <label className="form-body-muted mb-1 block">目标疾病</label>
           <input
             className={`${inputClass} ${fieldIssues?.disease ? fieldInvalidInputClass : ""}`}
             value={item.disease}
             onChange={(e) => update({ disease: e.target.value })}
             placeholder="如：高血压"
           />
-        </FieldBlock>
-        <FieldBlock label="复诊日期">
+          <label className="form-body-muted mb-1 mt-3 block">复诊日期</label>
           <input
             type="date"
             className={`${inputClass} ${fieldIssues?.date ? fieldInvalidInputClass : ""}`}
             value={item.date}
             onChange={(e) => update({ date: e.target.value })}
           />
-        </FieldBlock>
-        <FieldBlock label="医院">
+        </FormSection>
+
+        <FormSection title="就诊地点" bordered warn={fieldIssues?.hospital}>
+          <label className="form-body-muted mb-1 block">医院</label>
           <input
             className={`${inputClass} ${fieldIssues?.hospital ? fieldInvalidInputClass : ""}`}
             value={item.hospital}
             onChange={(e) => update({ hospital: e.target.value })}
             placeholder="医院名称"
           />
-        </FieldBlock>
-        <FieldBlock label="医生">
+          <label className="form-body-muted mb-1 mt-3 block">医生</label>
           <input
             className={inputClass}
             value={item.doctor}
             onChange={(e) => update({ doctor: e.target.value })}
             placeholder="选填"
           />
-        </FieldBlock>
-        {item.warnings?.length ? (
-          <p className="text-[13px] leading-5 text-[#e67e22]">{item.warnings.join("；")}</p>
-        ) : null}
+          {item.warnings?.length ? (
+            <p className="form-body mt-3 text-[#e67e22]">{item.warnings.join("；")}</p>
+          ) : null}
+        </FormSection>
       </CaptureCard>
     </div>
   );
 }
 
 export default function SmartCaptureView({
+  panelOpen = true,
   active = true,
   medicines,
   medicationPlans,
@@ -658,7 +717,6 @@ export default function SmartCaptureView({
   guidePhase = null,
   onGuideCaptureEvent,
 }) {
-  const [step, setStep] = useState("input");
   const [text, setText] = useState("");
   const [draftItems, setDraftItems] = useState([]);
   const [appointmentDrafts, setAppointmentDrafts] = useState([]);
@@ -669,6 +727,7 @@ export default function SmartCaptureView({
   const [duplicateConfirmOpen, setDuplicateConfirmOpen] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
   const recognizerRef = useRef(null);
+  const textareaRef = useRef(null);
   const handleConfirmRef = useRef(() => {});
   const pendingDraftItemsRef = useRef(null);
   const prevGuidePhaseRef = useRef(null);
@@ -677,6 +736,9 @@ export default function SmartCaptureView({
   const inputGuideScrollDoneRef = useRef(false);
   const onGuideCaptureEventRef = useRef(onGuideCaptureEvent);
 
+  const totalDraftCount = draftItems.length + appointmentDrafts.length;
+  const hasResults = totalDraftCount > 0;
+
   useEffect(() => {
     onGuideCaptureEventRef.current = onGuideCaptureEvent;
   }, [onGuideCaptureEvent]);
@@ -684,9 +746,9 @@ export default function SmartCaptureView({
   const profileHint = (profile?.chronicDiseases || []).join("、");
   const voiceSupported = isVoiceInputSupported();
 
+  // 仅在关闭整个助手面板时清空；在「智能添加 / 问答」间切换时保留草稿
   useEffect(() => {
-    if (!active) return;
-    setStep("input");
+    if (panelOpen) return;
     setText("");
     setDraftItems([]);
     setAppointmentDrafts([]);
@@ -700,16 +762,21 @@ export default function SmartCaptureView({
     previewDraftRef.current = { draftItems: [], appointmentDrafts: [] };
     previewScrollDoneRef.current = false;
     inputGuideScrollDoneRef.current = false;
+  }, [panelOpen]);
+
+  useEffect(() => {
+    if (active) return;
+    stopListening();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅在切走智能添加时停语音
   }, [active]);
 
   useEffect(() => {
-    if (step !== "confirm") {
+    if (!hasResults) {
       previewScrollDoneRef.current = false;
-    }
-    if (step !== "input") {
+    } else {
       inputGuideScrollDoneRef.current = false;
     }
-  }, [step]);
+  }, [hasResults]);
 
   useEffect(() => {
     if (!active || !guidePhase || guidePhase === prevGuidePhaseRef.current) return;
@@ -718,7 +785,6 @@ export default function SmartCaptureView({
     stopListening();
 
     if (guidePhase === "text") {
-      setStep("input");
       setText(GUIDE_CAPTURE_DEMO_TEXT);
       setDraftItems([]);
       setAppointmentDrafts([]);
@@ -734,8 +800,9 @@ export default function SmartCaptureView({
     }
 
     if (guidePhase === "voice") {
-      setStep("input");
       setText("");
+      setDraftItems([]);
+      setAppointmentDrafts([]);
       previewScrollDoneRef.current = false;
       inputGuideScrollDoneRef.current = false;
       onFooterChange?.(null);
@@ -800,7 +867,9 @@ export default function SmartCaptureView({
       const result = await parseCaptureText(trimmed, { profileHint });
       if (!result.medicines?.length && !result.appointments?.length) {
         setError(result.clarify || "未能识别可添加的内容，请换一种说法试试。");
-        setStep("input");
+        setDraftItems([]);
+        setAppointmentDrafts([]);
+        previewDraftRef.current = { draftItems: [], appointmentDrafts: [] };
         return;
       }
       const enriched = enrichMedicineDrafts(result.medicines || [], medicines, medicationPlans);
@@ -811,7 +880,7 @@ export default function SmartCaptureView({
         appointmentDrafts: result.appointments || [],
       };
       setShowValidation(false);
-      setStep("confirm");
+      previewScrollDoneRef.current = false;
       if (guidePhase === "text") {
         onGuideCaptureEvent?.({ type: "textParsed" });
       }
@@ -867,7 +936,6 @@ export default function SmartCaptureView({
   }
 
   function resetCaptureForm() {
-    setStep("input");
     setText("");
     setDraftItems([]);
     setAppointmentDrafts([]);
@@ -962,21 +1030,25 @@ export default function SmartCaptureView({
 
   const handleReinput = useCallback(() => {
     setShowValidation(false);
-    setStep("input");
+    setDraftItems([]);
+    setAppointmentDrafts([]);
+    setError("");
     inputGuideScrollDoneRef.current = false;
     previewScrollDoneRef.current = false;
+    onFooterChange?.(null);
     window.requestAnimationFrame(() => {
       scrollAssistantPanelToTop("auto");
+      textareaRef.current?.focus?.();
     });
     if (guidePhase === "text") {
       onGuideCaptureEvent?.({ type: "textPreviewReset" });
     } else if (guidePhase === "voice") {
       onGuideCaptureEvent?.({ type: "voicePreviewReset" });
     }
-  }, [guidePhase, onGuideCaptureEvent]);
+  }, [guidePhase, onGuideCaptureEvent, onFooterChange]);
 
   useEffect(() => {
-    if (!active || !guidePhase || step !== "input" || inputGuideScrollDoneRef.current) {
+    if (!active || !guidePhase || hasResults || inputGuideScrollDoneRef.current) {
       return undefined;
     }
 
@@ -986,10 +1058,10 @@ export default function SmartCaptureView({
     }, 380);
 
     return () => window.clearTimeout(timer);
-  }, [active, guidePhase, step]);
+  }, [active, guidePhase, hasResults]);
 
   useLayoutEffect(() => {
-    if (!active || step !== "confirm" || previewScrollDoneRef.current) return undefined;
+    if (!active || !hasResults || previewScrollDoneRef.current) return undefined;
 
     previewScrollDoneRef.current = true;
 
@@ -1027,10 +1099,10 @@ export default function SmartCaptureView({
       window.clearTimeout(timer);
       if (seenTimer) window.clearTimeout(seenTimer);
     };
-  }, [active, step, guidePhase]);
+  }, [active, hasResults, guidePhase, totalDraftCount]);
 
   useEffect(() => {
-    if (!active || step !== "confirm" || guidePhase) {
+    if (!active || !hasResults || guidePhase) {
       onFooterChange?.(null);
       return undefined;
     }
@@ -1043,131 +1115,165 @@ export default function SmartCaptureView({
     );
 
     return () => onFooterChange?.(null);
-  }, [active, step, guidePhase, handleReinput, onFooterChange]);
-
-  const totalDraftCount = draftItems.length + appointmentDrafts.length;
-  const completedDraftCount =
-    draftItems.filter((item) => !getMedicineDraftIssue(item)).length +
-    appointmentDrafts.filter((item) => !getAppointmentDraftIssue(item)).length;
+  }, [active, hasResults, guidePhase, handleReinput, onFooterChange]);
 
   return (
     <>
-      {step === "input" ? (
-        <div className="space-y-4">
-          <CaptureInputGuide />
+      <div className="space-y-4">
+        <div className="sticky top-0 z-20 overflow-hidden rounded-xl border-2 border-[#8fdcc0] bg-white shadow-[0_4px_12px_rgba(245,246,248,0.95)]">
+          <div className="flex items-center gap-2 border-b border-[#eef7f2] px-3.5 py-2.5">
+            <svg
+              className="h-4 w-4 shrink-0 text-[#00a87a]"
+              viewBox="0 0 24 24"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M8 5h8M8 19h8M5 8v8M19 8v8"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+              <path d="M9 12h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+            <div className="min-w-0">
+              <p className="form-title text-[#00a87a]">智能识别</p>
+              <p className="form-body-muted mt-0.5 text-[12px]">
+                支持用药、库存、复诊信息的输入和识别
+              </p>
+            </div>
+          </div>
 
           <textarea
+            ref={textareaRef}
             id="guide-capture-textarea"
-            className={`${inputClass} min-h-[128px] resize-none leading-6`}
-            placeholder="粘贴（或输入）文本"
+            className="form-body min-h-[88px] w-full resize-none border-0 bg-white px-3.5 py-3 leading-6 text-[#333] outline-none placeholder:text-[#c4c8ce]"
+            placeholder={`例如：
+每天早饭后吃一片氨氯地平
+氨氯地平库存加100片
+6月15号去市第一医院复查高血压`}
             value={text}
             onChange={(e) => setText(e.target.value)}
           />
 
-          {voiceSupported ? (
+          <div className="flex items-center justify-between gap-2 border-t border-[#f0f0f0] px-3 py-2.5">
+            <div className="flex min-w-0 items-center gap-2">
+              {voiceSupported ? (
+                <button
+                  type="button"
+                  id="guide-capture-voice"
+                  onTouchStart={(e) => {
+                    e.preventDefault();
+                    startListening();
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    startListening();
+                  }}
+                  onTouchEnd={stopListening}
+                  onMouseUp={stopListening}
+                  onMouseLeave={listening ? stopListening : undefined}
+                  className={`form-body inline-flex items-center gap-1.5 rounded-full px-3 py-2 font-medium ${
+                    listening
+                      ? "bg-[#00c896] text-white"
+                      : "bg-[#f5f6f8] text-[#666]"
+                  } ${guidePhase === "voice" ? "guide-highlight" : ""}`}
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <rect
+                      x="9"
+                      y="3"
+                      width="6"
+                      height="11"
+                      rx="3"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                    />
+                    <path
+                      d="M6 11a6 6 0 0 0 12 0M12 17v3"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  {listening ? "聆听中…" : "语音识别"}
+                </button>
+              ) : null}
+            </div>
             <button
               type="button"
-              id="guide-capture-voice"
-              onTouchStart={(e) => {
-                e.preventDefault();
-                startListening();
-              }}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                startListening();
-              }}
-              onTouchEnd={stopListening}
-              onMouseUp={stopListening}
-              onMouseLeave={listening ? stopListening : undefined}
-              className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold ${
-                listening
-                  ? "bg-[#00c896] text-white"
-                  : "bg-white text-[#00a87a] shadow-[0_2px_8px_rgba(0,0,0,0.04)]"
-              } ${guidePhase === "voice" ? "guide-highlight" : ""}`}
+              id="guide-capture-parse"
+              disabled={parsing}
+              onClick={handleParse}
+              className={`form-body shrink-0 rounded-full bg-[#00c896] px-4 py-2 font-semibold text-white disabled:opacity-50 ${
+                guidePhase === "text" || guidePhase === "voice" ? "guide-highlight" : ""
+              }`}
             >
-              <span className="text-base" aria-hidden="true">
-                {listening ? "◉" : "🎤"}
-              </span>
-              {listening ? "正在聆听… 松开结束" : "按住说话"}
+              {parsing ? "识别中…" : hasResults ? "重新识别" : "识别并预览"}
             </button>
-          ) : null}
-
-          {error ? (
-            <div className="rounded-xl bg-[#fff8f0] px-3 py-2.5 text-sm leading-6 text-[#e67e22]">{error}</div>
-          ) : null}
-
-          <button
-            type="button"
-            id="guide-capture-parse"
-            disabled={parsing}
-            onClick={handleParse}
-            className={`w-full rounded-xl bg-[#00c896] py-3.5 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(0,200,150,0.3)] disabled:opacity-50 ${
-              guidePhase === "text" || guidePhase === "voice" ? "guide-highlight" : ""
-            }`}
-          >
-            {parsing ? "识别中…" : "识别并预览"}
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <div
-            id="guide-capture-preview"
-            className="rounded-lg border border-[#ffe8cc] bg-[#fffaf3] px-3 py-2.5"
-          >
-            <p className="text-[15px] font-semibold text-[#1a1a1a]">
-              识别到 {totalDraftCount} 项，请核对后添加
-            </p>
-            <p className={`${captureHintClass} mt-1`}>
-              已完成 {completedDraftCount}/{totalDraftCount} 项
-            </p>
           </div>
-
-          <div className="space-y-3 pb-4">
-            {draftItems.map((item) => (
-              <DraftItemCard
-                key={item.id}
-                item={item}
-                medicines={medicines}
-                medicationPlans={medicationPlans}
-                showValidation={showValidation}
-                canRemove={totalDraftCount > 1}
-                onChange={(next) =>
-                  setDraftItems((prev) =>
-                    prev.map((entry) => (entry.id === item.id ? next : entry))
-                  )
-                }
-                onRemove={() =>
-                  setDraftItems((prev) => prev.filter((entry) => entry.id !== item.id))
-                }
-              />
-            ))}
-            {appointmentDrafts.map((item) => (
-              <AppointmentDraftCard
-                key={item.id}
-                item={item}
-                canRemove={totalDraftCount > 1}
-                showValidation={showValidation}
-                onChange={(next) =>
-                  setAppointmentDrafts((prev) =>
-                    prev.map((entry) => (entry.id === item.id ? next : entry))
-                  )
-                }
-                onRemove={() =>
-                  setAppointmentDrafts((prev) => prev.filter((entry) => entry.id !== item.id))
-                }
-              />
-            ))}
-          </div>
-
-          {guidePhase ? (
-            <CaptureConfirmFooter
-              embedded
-              onReinput={handleReinput}
-              onConfirm={() => handleConfirmRef.current()}
-            />
-          ) : null}
         </div>
-      )}
+
+        {error ? (
+          <div className="rounded-xl bg-[#fff8f0] px-3 py-2.5 text-sm leading-6 text-[#e67e22]">
+            {error}
+          </div>
+        ) : null}
+
+        {hasResults ? (
+          <>
+            <div id="guide-capture-preview" className="space-y-3 pb-4">
+              <p className="form-body-muted px-0.5">
+                已识别 {totalDraftCount} 项，请核对
+              </p>
+              {draftItems.map((item) => (
+                <DraftItemCard
+                  key={item.id}
+                  item={item}
+                  medicines={medicines}
+                  medicationPlans={medicationPlans}
+                  showValidation={showValidation}
+                  canRemove={totalDraftCount > 1}
+                  onChange={(next) =>
+                    setDraftItems((prev) =>
+                      prev.map((entry) => (entry.id === item.id ? next : entry))
+                    )
+                  }
+                  onRemove={() =>
+                    setDraftItems((prev) => prev.filter((entry) => entry.id !== item.id))
+                  }
+                />
+              ))}
+              {appointmentDrafts.map((item) => (
+                <AppointmentDraftCard
+                  key={item.id}
+                  item={item}
+                  canRemove={totalDraftCount > 1}
+                  showValidation={showValidation}
+                  onChange={(next) =>
+                    setAppointmentDrafts((prev) =>
+                      prev.map((entry) => (entry.id === item.id ? next : entry))
+                    )
+                  }
+                  onRemove={() =>
+                    setAppointmentDrafts((prev) =>
+                      prev.filter((entry) => entry.id !== item.id)
+                    )
+                  }
+                />
+              ))}
+            </div>
+
+            {guidePhase ? (
+              <CaptureConfirmFooter
+                embedded
+                onReinput={handleReinput}
+                onConfirm={() => handleConfirmRef.current()}
+              />
+            ) : null}
+          </>
+        ) : null}
+      </div>
 
       <ConfirmDialog
         open={duplicateConfirmOpen}

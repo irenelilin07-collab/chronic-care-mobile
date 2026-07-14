@@ -1,3 +1,4 @@
+import { normalizeMessages } from "./appMessages.js";
 import { normalizeOnboarding } from "./onboarding.js";
 import { normalizeProfile } from "./profile.js";
 import { normalizeJournalEntries } from "./journalEntry.js";
@@ -26,6 +27,7 @@ export const defaultState = {
   medicines: [],
   medicationPlans: [],
   intakeRecords: {},
+  messages: [],
   appointments: [],
   journalEntries: [],
   settings: structuredClone(DEFAULT_SETTINGS),
@@ -49,20 +51,28 @@ export const defaultState = {
   },
 };
 
+export function normalizeAppState(parsed = {}) {
+  return {
+    ...structuredClone(defaultState),
+    ...parsed,
+    ui: { ...defaultState.ui, ...(parsed.ui || {}) },
+    settings: normalizeSettings({ ...defaultState.settings, ...(parsed.settings || {}) }),
+    profile: normalizeProfile({ ...defaultState.profile, ...(parsed.profile || {}) }),
+    journalEntries: normalizeJournalEntries(parsed.journalEntries),
+    messages: normalizeMessages(parsed.messages),
+    onboarding: normalizeOnboarding(parsed.onboarding),
+  };
+}
+
+function cacheKeyForHousehold(householdId) {
+  return `${STORAGE_KEY}-user-${householdId}`;
+}
+
 export function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return structuredClone(defaultState);
-    const parsed = JSON.parse(raw);
-    return {
-      ...structuredClone(defaultState),
-      ...parsed,
-      ui: { ...defaultState.ui, ...(parsed.ui || {}) },
-      settings: normalizeSettings({ ...defaultState.settings, ...(parsed.settings || {}) }),
-      profile: normalizeProfile({ ...defaultState.profile, ...(parsed.profile || {}) }),
-      journalEntries: normalizeJournalEntries(parsed.journalEntries),
-      onboarding: normalizeOnboarding(parsed.onboarding),
-    };
+    return normalizeAppState(JSON.parse(raw));
   } catch (error) {
     console.error("loadState failed:", error);
     return structuredClone(defaultState);
@@ -71,4 +81,25 @@ export function loadState() {
 
 export function saveState(state) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+export function loadHouseholdCache(householdId) {
+  if (!householdId) return null;
+  try {
+    const raw = localStorage.getItem(cacheKeyForHousehold(householdId));
+    if (!raw) return null;
+    return normalizeAppState(JSON.parse(raw));
+  } catch (error) {
+    console.error("loadHouseholdCache failed:", error);
+    return null;
+  }
+}
+
+export function saveHouseholdCache(householdId, state) {
+  if (!householdId) return;
+  try {
+    localStorage.setItem(cacheKeyForHousehold(householdId), JSON.stringify(state));
+  } catch (error) {
+    console.error("saveHouseholdCache failed:", error);
+  }
 }

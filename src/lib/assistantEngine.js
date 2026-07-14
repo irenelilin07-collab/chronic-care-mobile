@@ -259,7 +259,7 @@ function answerAdverseSummary(context) {
   const { adverse } = context.week;
 
   if (adverse.length === 0) {
-    return "【不适记录】\n\n近 7 天暂无不适记录。如有不适，可在「设置 → 记录不适」中保存。";
+    return "【不适记录】\n\n近 7 天暂无不适记录。如有不适，可在「设置 → 更多 → 记录不适」中保存。";
   }
 
   const lines = [`【不适记录】近 7 天共 ${adverse.length} 次：`, ""];

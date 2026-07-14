@@ -1,7 +1,7 @@
 function EmptyIllustration() {
   return (
     <svg
-      className="mx-auto h-28 w-28"
+      className="mx-auto h-20 w-20"
       viewBox="0 0 120 120"
       fill="none"
       aria-hidden="true"
@@ -18,30 +18,28 @@ function EmptyIllustration() {
   );
 }
 
-export default function PlanEmptyState({ onAdd, hasMedicines, guideHighlight = null }) {
+/** 主页空状态只提示右上角；管理页可传 onAdd 显示新建入口 */
+export default function PlanEmptyState({ hasMedicines, onAdd = null }) {
   return (
-    <section className="app-card overflow-hidden px-6 py-10">
+    <section className="app-card overflow-hidden px-6 py-8">
       <div className="text-center">
         <EmptyIllustration />
-        <h2 className="mt-5 text-lg font-bold text-[#1a1a1a]">还没有用药计划</h2>
-        <p className="mx-auto mt-2 max-w-[260px] text-sm leading-6 text-[#999]">
+        <h2 className="mt-4 text-base font-bold text-[#1a1a1a]">暂无用药计划</h2>
+        <p className="mx-auto mt-1.5 text-sm text-[#999]">
           {hasMedicines
-            ? "创建服药计划，自定义每日、每周或间隔用药规则"
-            : "建议先在「我的药箱」添加药品，再创建用药计划"}
+            ? onAdd
+              ? "还没有计划，可以新建一条"
+              : "点右上角管理计划"
+            : "请先去药箱添加药品"}
         </p>
-        {hasMedicines ? (
-          <div
-            id="guide-add-plan"
-            className={`mt-6 ${guideHighlight === "guide-add-plan" ? "guide-highlight rounded-xl" : ""}`}
+        {hasMedicines && onAdd ? (
+          <button
+            type="button"
+            onClick={onAdd}
+            className="mt-5 w-full rounded-xl bg-[#00c896] py-3 text-sm font-semibold text-white"
           >
-            <button
-              type="button"
-              onClick={onAdd}
-              className="w-full rounded-xl bg-[#00c896] py-3.5 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(0,200,150,0.35)]"
-            >
-              添加用药计划
-            </button>
-          </div>
+            新建用药计划
+          </button>
         ) : null}
       </div>
     </section>

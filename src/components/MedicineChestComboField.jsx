@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { formatSpec } from "../lib/medicine.js";
 import { ComboDropdownPanel, DropdownTable } from "./ComboDropdownTable.jsx";
 
 export default function MedicineChestComboField({
@@ -27,7 +26,6 @@ export default function MedicineChestComboField({
   const rows = filtered.map((item) => ({
     key: item.id,
     label: item.name,
-    sub: formatSpec(item),
     value: { medicineId: item.id },
   }));
 

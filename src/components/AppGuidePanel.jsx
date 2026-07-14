@@ -5,6 +5,11 @@ import {
   isSmartAddGuideStep,
 } from "../lib/appGuide.js";
 
+const BTN_BASE =
+  "rounded-xl py-2.5 text-sm font-semibold transition-opacity active:opacity-90";
+const BTN_PRIMARY = `${BTN_BASE} bg-[#00c896] text-white disabled:opacity-40`;
+const BTN_SECONDARY = `${BTN_BASE} border border-[#e8ecea] bg-white text-[#555]`;
+
 export default function AppGuidePanel({
   open,
   step,
@@ -14,8 +19,6 @@ export default function AppGuidePanel({
   onPrev,
   onSkipStep,
   onSkipAll,
-  onEnableReminder,
-  reminderEnableError,
   captureGuideProgress = {},
 }) {
   if (!open || !step) return null;
@@ -29,6 +32,7 @@ export default function AppGuidePanel({
     canAdvance && isTaskStep,
     captureGuideProgress
   );
+  const showCompleteChip = canAdvance && isTaskStep && step.completeLabel;
 
   return (
     <div
@@ -36,10 +40,10 @@ export default function AppGuidePanel({
         isSmartAddGuideStep(step.id) ? "z-[60]" : "z-40"
       }`}
     >
-      <div className="pointer-events-auto overflow-hidden rounded-2xl border border-[#d4f0e6] bg-white shadow-[0_8px_24px_rgba(0,0,0,0.1)]">
-        <div className="bg-[#f0fdf8] px-4 py-3">
+      <div className="pointer-events-auto overflow-hidden rounded-2xl border border-[#e2f3ec] bg-white shadow-[0_10px_28px_rgba(15,40,30,0.1)]">
+        <div className="border-b border-[#e8f5ef] bg-[#f5fbf8] px-4 py-3">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-xs font-semibold text-[#00a87a]">
+            <p className="text-xs font-semibold tracking-wide text-[#00a87a]">
               {isDone
                 ? "引导完成"
                 : isWelcome
@@ -49,101 +53,82 @@ export default function AppGuidePanel({
                     : "新手引导"}
             </p>
             {!isDone ? (
-              <button type="button" onClick={onSkipAll} className="text-xs text-[#999]">
-                退出
+              <button
+                type="button"
+                onClick={onSkipAll}
+                aria-label="退出引导"
+                title="退出引导"
+                className="-mr-1 flex h-7 w-7 items-center justify-center rounded-full text-[#999] transition-colors active:bg-[#e8f0ec] active:text-[#666]"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M6 6l12 12M18 6 6 18"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </svg>
               </button>
             ) : null}
           </div>
           {taskProgress ? (
-            <div className="mt-2 h-1 overflow-hidden rounded-full bg-[#d4f0e6]">
+            <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-[#dcefe7]">
               <div
-                className="h-full rounded-full bg-[#00c896] transition-all"
+                className="h-full rounded-full bg-[#00c896] transition-all duration-300"
                 style={{ width: `${(taskProgress.current / taskProgress.total) * 100}%` }}
               />
             </div>
           ) : null}
         </div>
 
-        <div className="px-4 py-3">
-          <h3 className="text-base font-bold text-[#1a1a1a]">{step.title}</h3>
-          <p className="mt-1.5 text-sm leading-6 text-[#666]">{description}</p>
+        <div className="px-4 pb-3.5 pt-3.5">
+          <h3 className="text-base font-bold leading-6 text-[#1a1a1a]">{step.title}</h3>
+          {description ? (
+            <p className="mt-1.5 text-sm leading-6 text-[#666]">{description}</p>
+          ) : null}
 
-          {canAdvance && isTaskStep && step.completeLabel ? (
-            <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-[#e8faf4] px-2.5 py-1 text-xs font-medium text-[#00a87a]">
-              ✓ {step.completeLabel}
+          {showCompleteChip ? (
+            <p className="mt-2.5 inline-flex items-center rounded-lg bg-[#e8faf4] px-2.5 py-1 text-xs font-semibold leading-4 text-[#00a87a]">
+              ✓ {step.completeLabel}，点「下一步」
             </p>
           ) : null}
 
-          {step.id === "reminder" && !canAdvance && onEnableReminder ? (
-            <button
-              type="button"
-              onClick={onEnableReminder}
-              className="mt-3 w-full rounded-xl border border-[#00c896] bg-[#f0fdf8] py-2.5 text-sm font-semibold text-[#00a87a]"
-            >
-              开启用药提醒
-            </button>
-          ) : null}
-
-          {reminderEnableError ? (
-            <p className="mt-2 text-xs leading-5 text-[#e67e22]">{reminderEnableError}</p>
-          ) : null}
-
-          <div className="mt-3">
+          <div className={description || showCompleteChip ? "mt-3.5" : "mt-3"}>
             {isDone ? (
-              <button
-                type="button"
-                onClick={onNext}
-                className="w-full rounded-xl bg-[#00c896] py-2.5 text-sm font-semibold text-white"
-              >
+              <button type="button" onClick={onNext} className={`w-full ${BTN_PRIMARY}`}>
                 开始使用
               </button>
             ) : isWelcome ? (
-              <button
-                type="button"
-                onClick={onNext}
-                className="w-full rounded-xl bg-[#00c896] py-2.5 text-sm font-semibold text-white"
-              >
-                开始引导
+              <button type="button" onClick={onNext} className={`w-full ${BTN_PRIMARY}`}>
+                开始
               </button>
             ) : step.optional && canGoBack ? (
               <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={onPrev}
-                  className="rounded-xl border border-[#eee] py-2.5 text-sm font-medium text-[#666]"
-                >
+                <button type="button" onClick={onPrev} className={BTN_SECONDARY}>
                   上一步
                 </button>
-                <button
-                  type="button"
-                  onClick={onSkipStep}
-                  className="rounded-xl border border-[#eee] py-2.5 text-sm text-[#666]"
-                >
+                <button type="button" onClick={onSkipStep} className={BTN_SECONDARY}>
                   跳过
                 </button>
                 <button
                   type="button"
                   onClick={onNext}
                   disabled={!canAdvance}
-                  className="rounded-xl bg-[#00c896] py-2.5 text-sm font-semibold text-white disabled:opacity-40"
+                  className={BTN_PRIMARY}
                 >
                   下一步
                 </button>
               </div>
             ) : canGoBack ? (
               <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={onPrev}
-                  className="rounded-xl border border-[#eee] py-2.5 text-sm font-medium text-[#666]"
-                >
+                <button type="button" onClick={onPrev} className={BTN_SECONDARY}>
                   上一步
                 </button>
                 <button
                   type="button"
                   onClick={onNext}
                   disabled={!canAdvance}
-                  className="rounded-xl bg-[#00c896] py-2.5 text-sm font-semibold text-white disabled:opacity-40"
+                  className={BTN_PRIMARY}
                 >
                   下一步
                 </button>
@@ -153,7 +138,7 @@ export default function AppGuidePanel({
                 type="button"
                 onClick={onNext}
                 disabled={!canAdvance}
-                className="w-full rounded-xl bg-[#00c896] py-2.5 text-sm font-semibold text-white disabled:opacity-40"
+                className={`w-full ${BTN_PRIMARY}`}
               >
                 下一步
               </button>

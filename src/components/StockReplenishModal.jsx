@@ -38,7 +38,6 @@ export default function StockReplenishModal({ open, medicine, onClose, onSave })
         </div>
 
         <StockAmountField
-          label="补充数量"
           amount={amount}
           unit={unit}
           onAmountChange={setAmount}

@@ -80,7 +80,6 @@ export default function WeeklyBoardPage({
   medicines,
   medicationPlans,
   intakeRecords,
-  onAddPlan,
 }) {
   const weekDays = useMemo(() => getWeekDays(anchorDateKey), [anchorDateKey]);
 
@@ -106,7 +105,7 @@ export default function WeeklyBoardPage({
 
   if (medicationPlans.length === 0) {
     return (
-      <PlanEmptyState onAdd={onAddPlan} hasMedicines={medicines.length > 0} />
+      <PlanEmptyState hasMedicines={medicines.length > 0} />
     );
   }
 
